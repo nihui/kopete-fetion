@@ -4,7 +4,7 @@
 #include <kopetemessage.h>
 #include <kopetepasswordedaccount.h>
 
-#include <openfetion.h>
+// #include <openfetion.h>
 
 class KActionMenu;
 class FetionProtocol;
@@ -14,7 +14,7 @@ class FetionAccount : public Kopete::PasswordedAccount
 {
     Q_OBJECT
     public:
-        FetionAccount( FetionProtocol* parent, const QString& accountID );
+        FetionAccount( FetionProtocol* parent, const QString& accountId );
         virtual ~FetionAccount();
         virtual void connectWithPassword( const QString& password );
         virtual void disconnect();
@@ -28,8 +28,8 @@ class FetionAccount : public Kopete::PasswordedAccount
     protected:
         virtual bool createContact( const QString& contactId, Kopete::MetaContact* parentContact );
     private Q_SLOTS:
-        void slotGotContact( const Contact* contact );
-        void slotGotGroup( const Group* group );
+        void slotGotContact( const QString& contactId, const QString& contactName, int groupId );
+        void slotGotGroup( int groupId, const QString& groupName );
         void slotGotMessage( const QString& sId, const QString& msgContent );
         void slotContactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status );
     private:

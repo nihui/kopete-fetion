@@ -86,7 +86,7 @@ bool FetionProtocol::validContactId( const QString& userId )
     return re.exactMatch( userId );
 }
 
-FetionProtocol *FetionProtocol::protocol()
+FetionProtocol* FetionProtocol::protocol()
 {
     return s_protocol;
 }

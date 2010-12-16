@@ -13,10 +13,11 @@
 
 #include <KDebug>
 
-FetionSession::FetionSession( const QString& accountId )
+FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 {
-    m_isConnected = false;
-    m_accountId = accountId;
+//     qWarning() << "FetionSession::FetionSession" << accountId;
+//     m_isConnected = false;
+//     m_accountId = accountId;
     notifier = 0;
     me = 0;
     config = fetion_config_new();
@@ -25,35 +26,19 @@ FetionSession::FetionSession( const QString& accountId )
 
 FetionSession::~FetionSession()
 {
-    disconnect();
+    qWarning() << "FetionSession::~FetionSession";
+//     disconnect();
 }
 
-bool FetionSession::isConnected() const
+void FetionSession::setLoginInformation( const QString& accountId, const QString& password )
 {
-    return true;
+    m_accountId = accountId;
+    m_password = password;
 }
 
-Conversation* FetionSession::getConversation( const QString& sId )
+void FetionSession::login()
 {
-    qWarning() << sId;
-    if ( contactConvHash.contains( sId ) )
-        return contactConvHash[ sId ];
-    Contact* contact = fetion_contact_list_find_by_userid( me->contactList, sId.toAscii() );
-    if ( !contact )
-        exit(0);
-    Conversation* conv = fetion_conversation_new( me, contact->sipuri, NULL );
-    contactConvHash[ sId ] = conv;
-    qWarning() << sId << conv;
-    return conv;
-}
-
-void FetionSession::connect( const QString& password )
-{
-    kDebug() << "FetionAccount::connectWithPassword";
-    /// TODO: connecting stuff here
-    me = fetion_user_new( m_accountId.toAscii(), password.toAscii() );
-
-    /**  init */
+    me = fetion_user_new( m_accountId.toAscii(), m_password.toAscii() );
     struct userlist* newul;
     struct userlist* ul_cur;
     ///
@@ -201,17 +186,13 @@ AUTH:
 
     qWarning() << "login finished.";
 
-
     /// NOTE: debug cases
     Group* grp = me->groupList;
     Contact* contact = me->contactList;
-//     QHash<int, Kopete::Group*> groupHash;
     char* sid = NULL;
     foreach_grouplist(me->groupList , grp){
         qWarning() << QString::fromUtf8( grp->groupname ) << grp->groupid;
-        emit gotGroup( grp );
-//         Kopete::Group* group = Kopete::ContactList::self()->findGroup( QString::fromUtf8( grp->groupname ) );
-//         groupHash[grp->groupid] = group;
+        emit gotGroup( grp->groupid, QString::fromUtf8( grp->groupname ) );
     }
     foreach_contactlist(me->contactList,contact) {
         if ( strlen(contact->sId) == 0 )
@@ -222,15 +203,7 @@ AUTH:
         }
         qWarning() << "sId" << contact->mobileno << contact->sId
         << QString::fromUtf8( contact->nickname ) << contact->state;
-        emit gotContact( contact );
-//         addContact( contact->sId, QString::fromUtf8( contact->nickname ), groupHash[contact->groupid] );
-//         Kopete::MetaContact* metaContact = new Kopete::MetaContact;
-//         FetionContact* c = new FetionContact( this, contact->sId, metaContact );
-//         c->setNickName( QString::fromUtf8( contact->nickname ) );
-//         c->setPhoto( QString::fromUtf8( config->iconPath ) + '/' + contact->sId + ".jpg" );
-//         c->setOnlineStatus( FetionProtocol::protocol()->fetionOnline );
-//         metaContact->addToGroup( groupHash[contact->groupid] );
-//         Kopete::ContactList::self()->addMetaContact( metaContact );
+        emit gotContact( QString::fromLatin1( contact->sId ), QString::fromUtf8( contact->nickname ), contact->groupid );
     }
 
 
@@ -246,32 +219,64 @@ AUTH:
     QObject::connect( notifier, SIGNAL(presenceChanged(const QString&,StateType)),
                       this, SLOT(slotPresenceChanged(const QString&,StateType)) );
     notifier->start();
-    /// fx_main_listen_thread_func();
+
 }
 
-void FetionSession::disconnect()
+void FetionSession::logout()
 {
-    if ( notifier ) {
-        delete notifier;
-        notifier = 0;
-    }
-    if ( me ) {
-        fetion_user_free( me );
-        me = 0;
-    }
 }
 
-void FetionSession::setStatus( const Kopete::OnlineStatus& status )
+bool FetionSession::isLoggedIn() const
+{
+    return true;
+}
+
+QString FetionSession::accountId() const
+{
+    return m_accountId;
+}
+
+void FetionSession::setVisibility( bool isVisible )
 {
 }
+
+void FetionSession::setStatusMessage( const QString& status )
+{
+}
+
+void FetionSession::sendMessage( const QString& message )
+{
+}
+
+// bool FetionSession::isConnected() const
+// {
+//     return true;
+// }
+
+// void FetionSession::disconnect()
+// {
+//     if ( notifier ) {
+//         notifier->exit();
+//         delete notifier;
+//         notifier = 0;
+//     }
+//     if ( me ) {
+//         fetion_user_free( me );
+//         me = 0;
+//     }
+// }
+
+// void FetionSession::setStatus( const Kopete::OnlineStatus& status )
+// {
+// }
 
 void FetionSession::slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri )
 {
-    if ( !contactConvHash.contains( sId ) ) {
-        Conversation* conv = fetion_conversation_new( me, qsipuri.toAscii(), NULL );
-        contactConvHash[ sId ] = conv;
-        qWarning() << sId << conv;
-    }
+//     if ( !contactConvHash.contains( sId ) ) {
+//         Conversation* conv = fetion_conversation_new( me, qsipuri.toAscii(), NULL );
+//         contactConvHash[ sId ] = conv;
+//         qWarning() << sId << conv;
+//     }
     emit gotMessage( sId, msgContent );
 }
 

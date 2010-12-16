@@ -33,8 +33,9 @@ void FetionSipNotifier::run()
 //                 qWarning("Error.. thread sip freed\n");
                 free(sip);
             }
-            QThread::setTerminationEnabled(true);
-            quit();
+//             QThread::setTerminationEnabled(true);
+//             quit();
+            return;
         }
 
         if (!FD_ISSET(sip->tcp->socketfd, &fd_read)) {
@@ -50,15 +51,17 @@ void FetionSipNotifier::run()
 //                 qWarning("\n\nError ...... break out...\n\n");
                 ///fx_conn_offline(fxmain);
     //             gdk_threads_leave();
-                QThread::setTerminationEnabled(true);
-                quit();
+//                 QThread::setTerminationEnabled(true);
+//                 quit();
+                return;
             }
             else{
 //                 qWarning("\n\n Error ... user listen thread break out\n\n");
                 ///chat_listen_thread_end( fxmain, sip->sipuri );
                 tcp_connection_free( sip->tcp );
-                QThread::setTerminationEnabled(true);
-                quit();
+//                 QThread::setTerminationEnabled(true);
+//                 quit();
+                return;
             }
         }
 
