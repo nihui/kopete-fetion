@@ -244,8 +244,65 @@ void FetionSession::setStatusMessage( const QString& status )
 {
 }
 
-void FetionSession::sendMessage( const QString& message )
+void FetionSession::sendClientMessage( const QString& sId, const QString& message )
 {
+    Contact* contact = fetion_contact_get_contact_info_by_no( me, sId.toAscii(), FETION_NO );
+    if ( !contact ) {
+        qWarning() << "get contact information failed" << sId;
+        return;
+    }
+
+    /* find the sipuri of the target user */
+    Contact* contact_cur;
+    Contact* target_contact = NULL;
+    foreach_contactlist( me->contactList, contact_cur ) {
+        if(strcmp(contact_cur->userId, contact->userId) == 0) {
+            target_contact = contact_cur;
+            break;
+        }
+    }
+
+    if ( !target_contact ) {
+        qWarning() << "not in your contact list" << sId;
+        return;
+    }
+
+    Conversation* conv = fetion_conversation_new( me, target_contact->sipuri, NULL );
+
+    fetion_conversation_send_sms( conv, message.toUtf8() );
+}
+
+void FetionSession::sendMobilePhoneMessage( const QString& sId, const QString& message )
+{
+    Contact* contact = fetion_contact_get_contact_info_by_no( me, sId.toAscii(), FETION_NO );
+    if ( !contact ) {
+        qWarning() << "get contact information failed" << sId;
+        return;
+    }
+
+    /* find the sipuri of the target user */
+    Contact* contact_cur;
+    Contact* target_contact = NULL;
+    foreach_contactlist( me->contactList, contact_cur ) {
+        if(strcmp(contact_cur->userId, contact->userId) == 0) {
+            target_contact = contact_cur;
+            break;
+        }
+    }
+
+    if ( !target_contact ) {
+        qWarning() << "not in your contact list" << sId;
+        return;
+    }
+
+    Conversation* conv = fetion_conversation_new( me, target_contact->sipuri, NULL );
+
+    int daycount;
+    int monthcount;
+    if ( fetion_conversation_send_sms_to_phone_with_reply( conv, message.toUtf8(), &daycount, &monthcount ) == -1 ) {
+        qWarning() << "send sms failed";
+        return;
+    }
 }
 
 // bool FetionSession::isConnected() const

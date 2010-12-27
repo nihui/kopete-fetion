@@ -81,10 +81,7 @@ void FetionAccount::setStatusMessage( const Kopete::StatusMessage& statusMessage
 void FetionAccount::slotSentMessage( const QString& sId, const QString& msgContent )
 {
     qWarning() << "slotSentMessage" << sId << msgContent;
-    m_session->sendMessage( msgContent );
-//     Conversation* conv = m_session->getConversation( sId );
-//     Q_ASSERT(conv);
-//     fetion_conversation_send_sms( conv, msgContent.toUtf8() );
+    m_session->sendClientMessage( sId, msgContent );
 }
 
 bool FetionAccount::createContact( const QString& contactId, Kopete::MetaContact* parentContact )

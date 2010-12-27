@@ -22,7 +22,8 @@ class FetionSession : public QObject
         QString accountId() const;
         void setVisibility( bool isVisible );
         void setStatusMessage( const QString& status );
-        void sendMessage( const QString& message );
+        void sendClientMessage( const QString& sId, const QString& message );
+        void sendMobilePhoneMessage( const QString& sId, const QString& message );
 
     private Q_SLOTS:
 //         void disconnect();
