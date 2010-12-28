@@ -15,9 +15,6 @@
 
 FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 {
-//     qWarning() << "FetionSession::FetionSession" << accountId;
-//     m_isConnected = false;
-//     m_accountId = accountId;
     notifier = 0;
     me = 0;
     config = fetion_config_new();
@@ -26,7 +23,12 @@ FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 
 FetionSession::~FetionSession()
 {
-    qWarning() << "FetionSession::~FetionSession";
+    qWarning() << "FetionSession::~FetionSession()";
+    if ( me ) {
+        fetion_user_free( me );
+        me = 0;
+    }
+//     delete notifier;
 //     disconnect();
 }
 
@@ -211,14 +213,14 @@ AUTH:
     fetion_contact_subscribe_only( me );
 
     /// TODO: create listening thread here !!!
-    notifier = new FetionSipNotifier( me->sip, me );
+    notifier = new FetionSipNotifier( me->sip, me, this );
     QObject::connect( notifier, SIGNAL(newThreadEntered(FetionSip*,User*)),
                       this, SLOT(slotNewThreadEntered(FetionSip*,User*)) );
     QObject::connect( notifier, SIGNAL(messageReceived(const QString&,const QString&)),
                       this, SLOT(slotMessageReceived(const QString&,const QString&,const QString&)) );
     QObject::connect( notifier, SIGNAL(presenceChanged(const QString&,StateType)),
                       this, SLOT(slotPresenceChanged(const QString&,StateType)) );
-    notifier->start();
+//     notifier->start();
 
 }
 
@@ -317,10 +319,6 @@ void FetionSession::sendMobilePhoneMessage( const QString& sId, const QString& m
 //         delete notifier;
 //         notifier = 0;
 //     }
-//     if ( me ) {
-//         fetion_user_free( me );
-//         me = 0;
-//     }
 // }
 
 // void FetionSession::setStatus( const Kopete::OnlineStatus& status )
@@ -329,24 +327,19 @@ void FetionSession::sendMobilePhoneMessage( const QString& sId, const QString& m
 
 void FetionSession::slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri )
 {
-//     if ( !contactConvHash.contains( sId ) ) {
-//         Conversation* conv = fetion_conversation_new( me, qsipuri.toAscii(), NULL );
-//         contactConvHash[ sId ] = conv;
-//         qWarning() << sId << conv;
-//     }
     emit gotMessage( sId, msgContent );
 }
 
 void FetionSession::slotNewThreadEntered( FetionSip* sip, User* user )
 {
-    FetionSipNotifier* thread = new FetionSipNotifier( sip, user );
-//     QObject::connect( thread, SIGNAL(newThreadEntered(FetionSipNotifier*)),
-//                       this, SLOT(slotNewThreadEntered(FetionSipNotifier*)) );
+    FetionSipNotifier* thread = new FetionSipNotifier( sip, user, this );
+    QObject::connect( thread, SIGNAL(newThreadEntered(FetionSipNotifier*)),
+                      this, SLOT(slotNewThreadEntered(FetionSipNotifier*)) );
     QObject::connect( thread, SIGNAL(messageReceived(const QString&,const QString&,const QString&)),
                       this, SLOT(slotMessageReceived(const QString&,const QString&,const QString&)) );
     QObject::connect( thread, SIGNAL(presenceChanged(const QString&,StateType)),
                       this, SLOT(slotPresenceChanged(const QString&,StateType)) );
-    thread->start();
+//     thread->start();
 }
 
 void FetionSession::slotPresenceChanged( const QString& sId, StateType state )

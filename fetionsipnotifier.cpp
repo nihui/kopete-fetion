@@ -1,70 +1,250 @@
 #include "fetionsipnotifier.h"
 
+#include <QStringList>
 #include <KDebug>
-#include <sys/select.h>
+// #include <sys/select.h>
 
-FetionSipNotifier::FetionSipNotifier( FetionSip* _sip, User* _user )
+class FetionSipHeader
+{
+    public:
+        explicit FetionSipHeader( const QString& headerStr );
+        SipType type() const;
+        QString typeAddition() const;
+        bool hasKey( const QString& key ) const;
+        QList<QString> value( const QString& key ) const;
+    private:
+        QHash<QString, QList<QString> > m_headerContents;
+        SipType m_type;
+        QString m_typeAddition;
+};
+
+FetionSipHeader::FetionSipHeader( const QString& headerStr )
+{
+    QStringList list = headerStr.split( "\r\n", QString::SkipEmptyParts );
+    QStringList::ConstIterator it = list.constBegin();
+    QStringList::ConstIterator end = list.constEnd();
+
+    QString headerTypeStr = *it;
+    QString typeId = headerTypeStr.section( QLatin1Char( ' ' ), 0, 0, QString::SectionSkipEmpty );
+    QString m_typeAddition = headerTypeStr.section( QLatin1Char( ' ' ), 1, -1, QString::SectionSkipEmpty );
+    if ( typeId == QLatin1String( "I" ) )
+        m_type = SIP_INVITATION;
+    else if ( typeId == QLatin1String( "M" ) )
+        m_type = SIP_MESSAGE;
+    else if ( typeId == QLatin1String( "IN" ) )
+        m_type = SIP_INCOMING;
+    else if ( typeId == QLatin1String( "BN" ) )
+        m_type = SIP_NOTIFICATION;
+    else if ( typeId == QLatin1String( "O" ) )
+        m_type = SIP_OPTION;
+    else if ( typeId == QLatin1String( "SIP-C/4.0" ) || typeId == QLatin1String( "SIP-C/2.0" ) )
+        m_type = SIP_SIPC_4_0;
+    else
+        m_type = SIP_UNKNOWN;
+
+    ++it;/// skip the first header type line
+
+    while ( it != end ) {
+        QStringList keyvalue = (*it).split( ": ", QString::SkipEmptyParts );
+        m_headerContents[ keyvalue.at( 0 ) ] << keyvalue.at( 1 );
+        ++it;
+    }
+}
+
+SipType FetionSipHeader::type() const
+{
+    return m_type;
+}
+
+QString FetionSipHeader::typeAddition() const
+{
+    return m_typeAddition;
+}
+
+bool FetionSipHeader::hasKey( const QString& key ) const
+{
+    return m_headerContents.contains( key );
+}
+
+QList<QString> FetionSipHeader::value( const QString& key ) const
+{
+    return m_headerContents.value( key );
+}
+
+/** ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+FetionSipNotifier::FetionSipNotifier( FetionSip* _sip, User* _user, QObject* parent )
+: QObject(parent)
 {
     sip = _sip;
     user = _user;
+    m_socket.setSocketDescriptor( sip->tcp->socketfd );
+    connect( &m_socket, SIGNAL(readyRead()), this, SLOT(slotReadyRead()) );
 }
 
 FetionSipNotifier::~FetionSipNotifier()
 {
+    m_socket.close();
 }
 
-void FetionSipNotifier::run()
+void FetionSipNotifier::slotReadyRead()
 {
-    fd_set fd_read;
-    struct timeval tv;
-    for ( ; ; ) {
-        FD_ZERO(&fd_read);
-        FD_SET(sip->tcp->socketfd, &fd_read);
-        tv.tv_sec = 13;
-        tv.tv_usec = 0;
+    QByteArray data = m_socket.readAll();
+    if ( data.isEmpty() )
+        return;
 
-        int ret = select(sip->tcp->socketfd+1, &fd_read, NULL, NULL, &tv);
+    QString datastr = QString::fromUtf8( data );
+    qWarning() << datastr;
 
-        if (ret == 0)
-            continue;
-        if (ret == -1) {
-//             qWarning ("Error.. to read socket, exit thread");
-            if(sip != user->sip){
-//                 qWarning("Error.. thread sip freed\n");
-                free(sip);
+    int index = 0;
+    int len = datastr.size();
+
+    int headerBegin;
+    int headerEnd;
+
+    while ( index < len ) {
+        headerBegin = index;
+        headerEnd = datastr.indexOf( "\r\n\r\n", headerBegin ) + 4;/// length of \r\n\r\n
+        QString headerStr = datastr.mid( headerBegin, headerEnd - headerBegin );
+
+        FetionSipHeader header( headerStr );
+
+        switch ( header.type() ) {
+            case SIP_INVITATION: {
+                int contentBegin = datastr.indexOf( "s=", headerEnd );
+                int contentEnd = datastr.size();/// FIXME: i'm just lazy here...  ;)  --- nihui
+                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
+                qWarning() << contentStr;
+
+                QString from = header.value( "F" ).at( 0 );
+                QString auth = header.value( "A" ).at( 0 );
+                QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
+                QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
+                QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
+                QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
+                QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
+
+                FetionConnection* conn = tcp_connection_new();
+                tcp_connection_connect( conn, firstAddress.toAscii().constData(), firstPort.toInt() );/// TODO: proxy here
+                FetionSip* conversionSip = fetion_sip_clone( sip );
+                fetion_sip_set_connection( conversionSip , conn );
+                qWarning() << "Received a conversation invitation";
+
+                char buf[1024] = { '\0' };
+                sprintf( buf , "SIP-C/4.0 200 OK\r\nF: %s\r\nI: -61\r\nQ: 200002 I\r\n\r\n", from.toAscii().constData() );
+                tcp_connection_send( sip->tcp , buf , strlen( buf ) );
+
+                fetion_sip_set_type( sip , SIP_REGISTER );
+                SipHeader* aheader = fetion_sip_credential_header_new( credential.toAscii() );
+                SipHeader* theader = fetion_sip_header_new( "K" , "text/html-fragment" );
+                SipHeader* mheader = fetion_sip_header_new( "K" , "multiparty" );
+                SipHeader* nheader = fetion_sip_header_new( "K" , "nudge" );
+                fetion_sip_add_header( sip , aheader );
+                fetion_sip_add_header( sip , theader );
+                fetion_sip_add_header( sip , mheader );
+                fetion_sip_add_header( sip , nheader );
+                char* sipres = fetion_sip_to_string( sip , NULL );
+                qWarning() << "Register to conversation server" << firstAddressPort;
+                tcp_connection_send( conn , sipres , strlen( sipres ) );
+                free( sipres );
+                memset( buf, '\0', sizeof(buf)*sizeof(char) );
+                int port = tcp_connection_recv( conn , buf , sizeof(buf)*sizeof(char) );
+
+                memset( conversionSip->sipuri, 0, sizeof(conversionSip->sipuri)*sizeof(char) );
+                strcpy( conversionSip->sipuri, from.toAscii().constData() );
+
+                emit newThreadEntered( conversionSip, user );
+
+                index = contentEnd;
+                break;
             }
-//             QThread::setTerminationEnabled(true);
-//             quit();
-            return;
-        }
+            case SIP_MESSAGE: {
+                int contentBegin = datastr.indexOf( "<Font", headerEnd );
+                int contentEnd = datastr.indexOf( "</Font>", contentBegin ) + 7;/// length of </Font>
+                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
+                qWarning() << contentStr;
 
-        if (!FD_ISSET(sip->tcp->socketfd, &fd_read)) {
-            QThread::usleep(100);
-            continue;
-        }
+//                 Message* msg = fetion_message_new();
+//                 fetion_message_free( msg );
 
-        int error;
-        SipMsg* sipmsg = fetion_sip_listen( sip, &error );
-        if ( !sipmsg && error ) {
-            if ( sip == user->sip ) {
-    //             gdk_threads_enter();
-//                 qWarning("\n\nError ...... break out...\n\n");
-                ///fx_conn_offline(fxmain);
-    //             gdk_threads_leave();
-//                 QThread::setTerminationEnabled(true);
-//                 quit();
+                QString from = header.value( "F" ).at( 0 );
+                QString callid = header.value( "I" ).at( 0 );
+                QString sequence = header.value( "Q" ).at( 0 );
+                QString sendtime = header.value( "D" ).at( 0 );
+
+                char rep[256] = { '\0' };
+                sprintf( rep, "SIP-C/4.0 200 OK\r\nF: %s\r\nI: %s\r\nQ: %s\r\n\r\n",
+                         from.toAscii().constData(), callid.toAscii().constData(), sequence.toAscii().constData() );
+                tcp_connection_send( sip->tcp, rep, strlen( rep ) );
+
+                index = contentEnd;
+                break;
+            }
+            case SIP_INCOMING: {
+                break;
+            }
+            case SIP_NOTIFICATION: {
+                QString sid = header.typeAddition().section( ' ', 0, 0, QString::SectionSkipEmpty );
+                QString notificationType = header.value( "N" ).at( 0 );
+
+                int contentBegin = datastr.indexOf( "<events>", headerEnd );
+                int contentEnd = datastr.indexOf( "</events>", contentBegin ) + 9;/// length of </events>
+                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
+                qWarning() << contentStr;
+
+                index = contentEnd;
+
+                if ( notificationType == QLatin1String( "PresenceV4" ) ) {
+                    /// NOTIFICATION_TYPE_PRESENCE
+                }
+                else if ( notificationType == QLatin1String( "Conversation" ) ) {
+                    /// NOTIFICATION_TYPE_CONVERSATION
+                }
+                else if ( notificationType == QLatin1String( "contact" ) ) {
+                    /// NOTIFICATION_TYPE_CONTACT
+                }
+                else if ( notificationType == QLatin1String( "registration" ) ) {
+                    /// NOTIFICATION_TYPE_REGISTRATION
+                }
+                else if ( notificationType == QLatin1String( "SyncUserInfoV4" ) ) {
+                    /// NOTIFICATION_TYPE_SYNCUSERINFO
+                }
+                else if ( notificationType == QLatin1String( "PGGroup" ) ) {
+                    /// NOTIFICATION_TYPE_PGGROUP
+                }
+                else {
+                    /// NOTIFICATION_TYPE_UNKNOWN
+                }
+        //         QDomDocument doc;
+        //         doc.setContent( list.last() );
+                break;
+            }
+            case SIP_OPTION: {
+                break;
+            }
+            case SIP_SIPC_4_0: {
+                if ( header.hasKey( "L" ) ) {
+                    int contentBegin = datastr.indexOf( "<results>", headerEnd );
+                    int contentEnd = datastr.indexOf( "</results>", contentBegin ) + 10;/// length of </results>
+                    index = contentEnd;
+                }
+                else {
+                    index = headerEnd;
+                }
+                break;
+            }
+            case SIP_UNKNOWN: {
+                qWarning() << "unknown sip message" << datastr;
                 return;
             }
-            else{
-//                 qWarning("\n\n Error ... user listen thread break out\n\n");
-                ///chat_listen_thread_end( fxmain, sip->sipuri );
-                tcp_connection_free( sip->tcp );
-//                 QThread::setTerminationEnabled(true);
-//                 quit();
-                return;
-            }
         }
 
+        qWarning() << "#############################";
+    }
+}
+
+void FetionSipNotifier::handleSipMessage( SipMsg* sipmsg )
+{
         /* handle the message */
         SipMsg* pos = sipmsg;
         int type;
@@ -76,7 +256,7 @@ void FetionSipNotifier::run()
                     int event, notification_type;
                     char* xml;
                     fetion_sip_parse_notification( pos->message , &notification_type , &event , &xml );
-                    QThread::usleep(1);
+//                     QThread::usleep(1);
                     switch ( notification_type ) {
                         case NOTIFICATION_TYPE_PRESENCE:
                             switch (event) {
@@ -252,6 +432,4 @@ void FetionSipNotifier::run()
             pos = pos->next;
         }
 
-        fetion_sip_message_free( sipmsg );
-    }
 }

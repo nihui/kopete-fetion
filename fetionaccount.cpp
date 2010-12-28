@@ -30,12 +30,11 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
 
 FetionAccount::~FetionAccount()
 {
-//     delete m_session;
+    qWarning() << "FetionAccount::~FetionAccount()";
 }
 
 void FetionAccount::connectWithPassword( const QString& password )
 {
-//     m_session = new FetionSession( accountId() );
     QObject::connect( m_session, SIGNAL(gotContact(const QString&,const QString&,int)),
                       this, SLOT(slotGotContact(const QString&,const QString&,int)) );
     QObject::connect( m_session, SIGNAL(gotGroup(int,const QString&)),
@@ -46,7 +45,6 @@ void FetionAccount::connectWithPassword( const QString& password )
                       this, SLOT(slotContactStatusChanged(const QString&,const Kopete::OnlineStatus&)) );
     m_session->setLoginInformation( accountId(), password );
     m_session->login();
-//     m_session->connect( password );
     /// TODO: connecting stuff end
     myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOnline );
 }
@@ -54,7 +52,9 @@ void FetionAccount::connectWithPassword( const QString& password )
 void FetionAccount::disconnect()
 {
     /// TODO: disconnecting stuff here
-    m_session->disconnect();
+    qWarning() << "FetionAccount::disconnect()";
+    myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOffline );
+//     m_session->disconnect();
 }
 
 void FetionAccount::fillActionMenu( KActionMenu* actionMenu )
@@ -126,11 +126,6 @@ void FetionAccount::slotContactStatusChanged( const QString& sId, const Kopete::
 void FetionAccount::slotGotMessage( const QString& sId, const QString& msgContent )
 {
     qWarning() << "slotGotMessage";
-//     char* charsid = fetion_sip_get_sid_by_sipuri( msg->sipuri );
-//     QString sId( charsid );
-//     free( charsid );
-
-//     qWarning() << "sId" << sId;
 
     Kopete::Contact* contact = contacts().value( sId );
     if ( !contact ) {
@@ -145,7 +140,5 @@ void FetionAccount::slotGotMessage( const QString& sId, const QString& msgConten
     contact->manager( Kopete::Contact::CanCreate )->appendMessage( message );
 
     qWarning() << sId << "say:" << msgContent;
-
-//     fetion_message_free( msg );
 }
 
