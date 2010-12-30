@@ -4,26 +4,23 @@
 #include <QObject>
 #include <QTcpSocket>
 
-#include <openfetion.h>
+class FetionSipEvent;
 
 class FetionSipNotifier : public QObject
 {
     Q_OBJECT
     public:
-        FetionSipNotifier( FetionSip* sip, User* user, QObject* parent = 0 );
+        FetionSipNotifier( QObject* parent = 0 );
         virtual ~FetionSipNotifier();
+        void connectToHost( const QString& hostAddress, int port );
+        void sendSipEvent( const FetionSipEvent& sipEvent );
 //         void run();
     Q_SIGNALS:
-        void newThreadEntered( FetionSip* sip, User* user );
         void messageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri );
-        void presenceChanged( const QString& sId, StateType state );
+//         void presenceChanged( const QString& sId, StateType state );
     private Q_SLOTS:
         void slotReadyRead();
     private:
-        void handleSipMessage( SipMsg* sipmsg );
-    private:
-        FetionSip* sip;
-        User* user;
         QTcpSocket m_socket;
 };
 

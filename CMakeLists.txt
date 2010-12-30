@@ -36,12 +36,6 @@ endif(CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # add_subdirectory( icons )
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(OFETION REQUIRED ofetion)
-include_directories(${OFETION_INCLUDE_DIRS})
-
-# message(STATUS ${OFETION_LIBRARIES})
-
 include_directories(${KOPETE_INCLUDE_DIR})
 
 set(kopete_fetion_PART_SRCS
@@ -52,6 +46,7 @@ set(kopete_fetion_PART_SRCS
     fetioneditaccountwidget.cpp
     fetionprotocol.cpp
     fetionsession.cpp
+    fetionsipevent.cpp
     fetionsipnotifier.cpp
     fetionvcodedialog.cpp
 )
@@ -72,8 +67,7 @@ set(fetiontest_SRCS
 
 kde4_add_plugin(kopete_fetion ${kopete_fetion_PART_SRCS})
 
-target_link_libraries(kopete_fetion ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY}
-${OFETION_LIBRARIES})
+target_link_libraries(kopete_fetion ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY})
 
 install(TARGETS kopete_fetion DESTINATION ${PLUGIN_INSTALL_DIR})
 

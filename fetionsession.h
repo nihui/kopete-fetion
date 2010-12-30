@@ -5,7 +5,9 @@
 
 #include <kopeteonlinestatus.h>
 #include <QHash>
-#include <openfetion.h>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+// #include <openfetion.h>
 
 class FetionSipNotifier;
 
@@ -26,6 +28,11 @@ class FetionSession : public QObject
         void sendMobilePhoneMessage( const QString& sId, const QString& message );
 
     private Q_SLOTS:
+//         void replyFinished( QNetworkReply* reply );
+        void ssiAuthFinished();
+        void getCodePicFinished();
+        void getSystemConfigFinished();
+
 //         void disconnect();
 //         void startLoginRequest();
         /** */
@@ -45,16 +52,23 @@ class FetionSession : public QObject
         void statusChanged( const Kopete::OnlineStatus& status );
     private Q_SLOTS:
         void slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri );
-        void slotNewThreadEntered( FetionSip* sip, User* user );
-        void slotPresenceChanged( const QString& sId, StateType state );
+//         void slotNewThreadEntered( FetionSip* sip, User* user );
+//         void slotPresenceChanged( const QString& sId, StateType state );
     private:
         bool m_isConnected;
         QString m_accountId;
         QString m_password;
+        QNetworkAccessManager* manager;
+
+        QString picid;
+        QString vcode;
+        QString algorithm;
         FetionSipNotifier* notifier;
-        User* me;
-        Config* config;
-        struct userlist* ul;
+
+
+//         User* me;
+//         Config* config;
+//         struct userlist* ul;
 //         QHash<QString, Conversation*> contactConvHash;
 };
 
