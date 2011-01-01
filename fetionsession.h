@@ -64,6 +64,7 @@ class FetionSession : public QObject
         QString picid;
         QString vcode;
         QString algorithm;
+        QString type;
         FetionSipNotifier* notifier;
 
         QString m_ssiAppSignInV2Uri;
@@ -73,6 +74,7 @@ class FetionSession : public QObject
         QString m_httpTunnelAddress;
         QString m_nouce;
 
+        QString m_userId;
         QString m_from;
 
 //         QHash<QString, Conversation*> contactConvHash;

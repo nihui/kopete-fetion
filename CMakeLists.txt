@@ -4,15 +4,13 @@ if(CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
   find_package(KDE4 REQUIRED)
   find_package(Qt4 REQUIRED)
-  find_package(LibXml2 REQUIRED)
-#   find_package(SQLITE3 REQUIRED)
+  find_package(OpenSSL REQUIRED)
   INCLUDE_DIRECTORIES(${QT4_INCLUDE_DIR})
   INCLUDE_DIRECTORIES(${QT_QTCORE_INCLUDE_DIR})
   INCLUDE_DIRECTORIES(${QT_QTGUI_INCLUDE_DIR})
   INCLUDE_DIRECTORIES(${QT_QTNETWORK_INCLUDE_DIR})
   INCLUDE_DIRECTORIES(${KDE4_INCLUDE_DIR})
   INCLUDE_DIRECTORIES(${KDE4_INCLUDES})
-  include_directories(${LIBXML2_INCLUDE_DIR})
 
   include(KDE4Defaults)
   include(MacroLibrary)
@@ -36,7 +34,7 @@ endif(CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # add_subdirectory( icons )
 
-include_directories(${KOPETE_INCLUDE_DIR})
+include_directories(${KOPETE_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 
 set(kopete_fetion_PART_SRCS
     fetionaccount.cpp
@@ -51,12 +49,6 @@ set(kopete_fetion_PART_SRCS
     fetionvcodedialog.cpp
 )
 
-set(fetiontest_SRCS
-#     fetionsession.cpp
-    fetiontest.cpp
-    fetionvcodedialog.cpp
-)
-
 # kde4_add_executable(fetiontest ${fetiontest_SRCS})
 # target_link_libraries(fetiontest ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY} ofetion)
 # kde4_add_ui_files(kopete_facebook_PART_SRCS
@@ -67,7 +59,7 @@ set(fetiontest_SRCS
 
 kde4_add_plugin(kopete_fetion ${kopete_fetion_PART_SRCS})
 
-target_link_libraries(kopete_fetion ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY})
+target_link_libraries(kopete_fetion ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY} crypto)
 
 install(TARGETS kopete_fetion DESTINATION ${PLUGIN_INSTALL_DIR})
 

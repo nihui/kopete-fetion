@@ -6,8 +6,6 @@
 
 #include <KComponentData>
 
-#include <openfetion.h>
-
 #include <KDebug>
 
 FetionChatSession::FetionChatSession( const Kopete::Contact* user,

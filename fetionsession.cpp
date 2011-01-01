@@ -22,25 +22,28 @@
 #include <QNetworkReply>
 #include <QSslConfiguration>
 
+#include <QFile>
+
+#include <openssl/crypto.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+
 #include <ctime>
 
-static QByteArray myhash( int userId, QByteArray password )
+static QByteArray myhash( QByteArray userId, QByteArray password )
 {
     QByteArray domain( "fetion.com.cn:" );
     QByteArray data = domain + password;
     QByteArray digest = QCryptographicHash::hash( data, QCryptographicHash::Sha1 );
-//     qWarning() << "digest" << digest;
-    QByteArray hexdigest = digest.toHex();
 //     qWarning() << "hexdigest" << hexdigest;
-    if ( userId == 0 )
-        return hexdigest;
+    if ( userId.isEmpty() )
+        return digest;
 
-    QByteArray hexpassword = password.toHex();
-    char b[4];
-    int i = userId;
-    memcpy( b, &i, 4 );
-    QByteArray userid( b );
-    QByteArray data2 = userid + hexpassword;
+    int id = userId.toInt();
+    char* bid = (char*)&id;
+    QByteArray iddata = QByteArray::fromRawData( bid, sizeof(int) );
+    QByteArray data2 = iddata + digest;
     QByteArray digest2 = QCryptographicHash::hash( data2, QCryptographicHash::Sha1 );
     return digest2;
 }
@@ -55,6 +58,15 @@ static QString generateNouce()
                    qrand() & 0xFFFF , qrand() & 0xFFFF,
                    qrand() & 0xFFFF , qrand() & 0xFFFF );
     return nouce;
+}
+
+static QByteArray generateAesKey()
+{
+    QFile randfile( "/dev/urandom" );
+    randfile.open( QIODevice::ReadOnly );
+    QByteArray key = randfile.read( 64 );
+    randfile.close();
+    return key;
 }
 
 FetionSession::FetionSession( QObject* parent ) : QObject(parent)
@@ -135,7 +147,7 @@ void FetionSession::getSystemConfigFinished()
     url.addQueryItem( "mobileno", m_accountId );
     url.addQueryItem( "domains", "fetion.com.cn" );
     url.addQueryItem( "v4digest-type", "1" );
-    url.addQueryItem( "v4digest", myhash( 0 , m_password.toAscii() ) );
+    url.addQueryItem( "v4digest", myhash( QByteArray() , m_password.toAscii() ).toHex() );
 
     if ( !picid.isEmpty() && !vcode.isEmpty() && !algorithm.isEmpty() ) {
         url.addQueryItem( "pid", picid );
@@ -169,7 +181,7 @@ void FetionSession::ssiAuthFinished()
     if ( statusCode == "421" || statusCode == "420" ) {
         QDomElement verificationElem = docElem.firstChildElement( "verification" );
         algorithm = verificationElem.attribute( "algorithm" );
-        QString type = verificationElem.attribute( "type" );
+        type = verificationElem.attribute( "type" );
         QString text = verificationElem.attribute( "text" );
         QString tips = verificationElem.attribute( "tips" );
 
@@ -198,7 +210,7 @@ void FetionSession::ssiAuthFinished()
         QString sipuri = userElem.attribute( "uri" );
         QString mobileno = userElem.attribute( "mobile-no" );
         QString userstatus = userElem.attribute( "user-status" );
-        QString userid = userElem.attribute( "user-id" );
+        m_userId = userElem.attribute( "user-id" );
 
         QString sId = sipuri.section( ':', 1, -1, QString::SectionSkipEmpty ).section( '@', 0, 0, QString::SectionSkipEmpty );
         m_from = sId;
@@ -207,6 +219,8 @@ void FetionSession::ssiAuthFinished()
         QString sipcAddressIp = m_sipcProxyAddress.section( ':', 0, 0, QString::SectionSkipEmpty );
         int sipcAddressPort = m_sipcProxyAddress.section( ':', -1, -1, QString::SectionSkipEmpty ).toInt();
         notifier = new FetionSipNotifier( this );
+        connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                 this, SLOT(handleSipEvent(const FetionSipEvent&)) );
         notifier->connectToHost( sipcAddressIp, sipcAddressPort );
 
         /// sipc register
@@ -247,10 +261,9 @@ void FetionSession::getCodePicFinished()
 
 void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
+//     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipInvitation: {
-//                 qWarning() << contentStr;
-
 //                 QString from = newEvent.getFirstValue( "F" );
 //                 QString auth = newEvent.getFirstValue( "A" );
 //                 QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
@@ -291,8 +304,6 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             break;
         }
         case FetionSipEvent::SipMessage: {
-//                 qWarning() << contentStr;
-
 //                 QString from = newEvent.getFirstValue( "F" );
 //                 QString callid = newEvent.getFirstValue( "I" );
 //                 QString sequence = newEvent.getFirstValue( "Q" );
@@ -342,6 +353,68 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             break;
         }
         case FetionSipEvent::SipSipc_4_0: {
+            if ( sipEvent.typeAddition() == "401 Unauthoried" ) {
+                ///
+                QString wstr = sipEvent.getFirstValue( "W" );
+                QString nonce = wstr.section( '\"', 3, 3, QString::SectionSkipEmpty );
+                QString key = wstr.section( '\"', 5, 5, QString::SectionSkipEmpty );
+                QString signature = wstr.section( '\"', 7, 7, QString::SectionSkipEmpty );
+
+                QByteArray aeskey = generateAesKey();
+                QByteArray hidden = nonce.toAscii() + myhash( m_userId.toAscii(), m_password.toAscii() ) + aeskey;
+
+                const char* publickey = key.toAscii().constData();
+                const unsigned char* fromdata = (const unsigned char*)hidden.constData();
+                char modulus[256];
+                char exponent[6];
+                memcpy( modulus , publickey , 256 );
+                memcpy( exponent , publickey + 256 , 6 );
+                BIGNUM* bnn = BN_new();
+                BIGNUM* bne = BN_new();
+                RSA* r = RSA_new();
+                BN_hex2bn( &bnn, modulus );
+                BN_hex2bn( &bne, exponent );
+                r->n = bnn;
+                r->e = bne;
+                r->d = NULL;
+                int flen = RSA_size( r );
+                unsigned char* outdata = (unsigned char*)malloc( flen );
+                int ret = RSA_public_encrypt( hidden.size(), fromdata, outdata, r, RSA_PKCS1_PADDING );
+                qWarning() << "rsa public encrypt" << ret;
+                RSA_free( r );
+
+                QByteArray response( (char*)outdata );
+                free( outdata );
+
+                FetionSipEvent sipcAuthActionEvent( FetionSipEvent::SipRegister, FetionSipEvent::EventUnknown );
+                sipcAuthActionEvent.addHeader( "F", m_from );
+                sipcAuthActionEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+                sipcAuthActionEvent.addHeader( "Q", "2 R" );
+                QString Astr;
+                Astr += "Digest response=\"";
+                Astr += response.toHex();
+                Astr += "\",algorithm=\"SHA1-sess-v4\"";
+                sipcAuthActionEvent.addHeader( "A", Astr );
+                sipcAuthActionEvent.addHeader( "AK", "ak-value" );
+                QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
+                ackaStr = ackaStr.arg(vcode).arg(algorithm).arg(type).arg(picid);
+                sipcAuthActionEvent.addHeader( "A", ackaStr );
+
+                QString authContent = "<args><device machine-code=\"001676C0E351\"/><caps value=\"1ff\"/><events value=\"7f\"/>";
+                authContent += "<user-info mobile-no=\"";
+                authContent += m_accountId;
+                authContent += "\" user-id=\"";
+                authContent += m_userId;
+                authContent += "\">";
+                authContent += "<personal version=\"\" attributes=\"v4default\"/>";
+                authContent += "<custom-config version=\"\"/>";
+                authContent += "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>";
+                authContent += "<credentials domains=\"fetion.com.cn\"/>";
+                authContent += "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
+                sipcAuthActionEvent.setContent( authContent );
+
+                notifier->sendSipEvent( sipcAuthActionEvent );
+            }
 //                 if ( callid == "5" ) {
 //                     /// contact information return
 //                 }
@@ -354,96 +427,6 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
     }
 }
 
-// {
-//     m_loginSocket.connectToHostEncrypted( "uid.fetion.com.cn", 443 );
-//     qWarning() << "Start ssi login";
-//     QByteArray s;
-//     s += "GET /ssiportal/SSIAppSignInV4.aspx?";
-//     s += "mobileno=" + m_accountId.toAscii();
-//     QByteArray verifyUri;
-// //     if ( !vcode.isEmpty() ) {
-// //         verifyUri += "&pic=" + vcode;
-// //         vcode.clear();
-// //     }
-// //     verifyUri += "&pid=" + user->verification->guid;
-//     verifyUri += "&pic=" + vcode;
-//     verifyUri += "&algorithm=" + algorithm;
-//     QByteArray digestType = "1";
-//     QByteArray digest = myhash( 0/*user->userId*/ , m_password.toAscii() );
-//     s += "&domains=fetion.com.cn" + verifyUri + "&v4digest-type=" + digestType + "&v4digest=" + digest + "\r\n"
-//                     "User-Agent: IIC2.0/pc "PROTO_VERSION"\r\n"
-//                     "Host: uid.fetion.com.cn\r\n"
-//                     "Cache-Control: private\r\n"
-//                     "Connection: Keep-Alive\r\n\r\n";
-//     m_loginSocket.write( s );
-//     connect( &m_loginSocket, SIGNAL(readyRead()), this, SLOT(gotLoginSocketData()) );
-// }
-//     parse_ssi_auth_response( pos , me );
-//     free( pos );
-// 
-//     if ( me->loginStatus == 421 || me->loginStatus == 420 ) {
-//         generate_pic_code( me );
-//         QImage s;
-//         s.load( QString( me->config->globalPath ) + "/code.gif", "JPEG" );
-//         QString codetext = FetionVCodeDialog::getInputCode( s );
-//         fetion_user_set_verification_code( me, codetext.toAscii() );
-//         goto LOGIN;
-//     }
-//     fetion_config_initialize( config, me->userId );
-// 
-//     /* set user list to be stored in local file  */
-//     newul = fetion_user_list_find_by_no( ul , m_accountId.toAscii() );
-//     if ( !newul ) {
-//         newul = fetion_user_list_new( m_accountId.toAscii(), NULL, me->userId, me->sId, P_ONLINE , 1);
-//         foreach_userlist(ul , ul_cur)
-//             ul_cur->islastuser = 0;
-//         fetion_user_list_append(ul , newul);
-//     }
-//     else {
-//         memset(newul->password, 0, sizeof(newul->password));
-//         newul->laststate = P_ONLINE;
-//         foreach_userlist(ul , ul_cur)
-//             ul_cur->islastuser = 0;
-//         newul->islastuser = 1;
-//     }
-//     fetion_user_list_save(config , ul);
-//     fetion_user_list_free(ul);
-// 
-//     /* download xml configuration file from the server */
-//     fetion_config_load( me );
-//     fetion_config_download_configuration( me );
-//     fetion_config_save( me );
-//     fetion_user_set_st( me , P_ONLINE );
-// 
-//     /*load local data*/
-//     int local_group_count;
-//     int local_buddy_count;
-//     fetion_user_load( me );
-//     fetion_contact_load( me, &local_group_count, &local_buddy_count );
-//     qWarning() << "g & c" << local_group_count << local_group_count;
-// 
-//     /* start a new tcp connection for registering to sipc server */
-//     FetionConnection* conn = tcp_connection_new();
-//     tcp_connection_connect( conn, config->sipcProxyIP, config->sipcProxyPort );
-//     /* add the connection object into the connection list */
-//     ///fx_conn_append( conn );
-//     /* initialize a sip object */
-//     FetionSip* sip = fetion_sip_new( conn , me->sId );
-//     fetion_user_set_sip( me , sip );
-// 
-//     pos = sipc_reg_action( me );
-//     char* nonce;
-//     char* key;
-//     parse_sipc_reg_response( pos , &nonce , &key );
-//     free( pos );
-//     char* aeskey = generate_aes_key();
-//     char* response = generate_response( nonce, me->userId, me->password, key, aeskey );
-//     free(nonce);
-//     free(key);
-//     free(aeskey);
-//     /* start sipc authentication using the response created just now */
-//     int new_group_count;
-//     int new_buddy_count;
 // AUTH:
 //     pos = sipc_aut_action( me , response );
 //     parse_sipc_auth_response( pos , me, &new_group_count, &new_buddy_count );
