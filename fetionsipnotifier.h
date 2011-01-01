@@ -14,10 +14,8 @@ class FetionSipNotifier : public QObject
         virtual ~FetionSipNotifier();
         void connectToHost( const QString& hostAddress, int port );
         void sendSipEvent( const FetionSipEvent& sipEvent );
-//         void run();
     Q_SIGNALS:
-        void messageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri );
-//         void presenceChanged( const QString& sId, StateType state );
+        void sipEventReceived( const FetionSipEvent& sipEvent );
     private Q_SLOTS:
         void slotReadyRead();
     private:

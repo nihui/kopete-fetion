@@ -6,9 +6,9 @@
 #include <kopeteonlinestatus.h>
 #include <QHash>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
-// #include <openfetion.h>
+// #include <QNetworkReply>
 
+class FetionSipEvent;
 class FetionSipNotifier;
 
 class FetionSession : public QObject
@@ -29,9 +29,10 @@ class FetionSession : public QObject
 
     private Q_SLOTS:
 //         void replyFinished( QNetworkReply* reply );
+        void getSystemConfigFinished();
         void ssiAuthFinished();
         void getCodePicFinished();
-        void getSystemConfigFinished();
+        void handleSipEvent( const FetionSipEvent& sipEvent );
 
 //         void disconnect();
 //         void startLoginRequest();
@@ -51,7 +52,7 @@ class FetionSession : public QObject
         void gotMessage( const QString& sId, const QString& msgContent );
         void statusChanged( const Kopete::OnlineStatus& status );
     private Q_SLOTS:
-        void slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri );
+//         void slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri );
 //         void slotNewThreadEntered( FetionSip* sip, User* user );
 //         void slotPresenceChanged( const QString& sId, StateType state );
     private:
@@ -65,10 +66,15 @@ class FetionSession : public QObject
         QString algorithm;
         FetionSipNotifier* notifier;
 
+        QString m_ssiAppSignInV2Uri;
+        QString m_getPicCodeUri;
+        QString m_sipcProxyAddress;
+        QString m_sipcSslProxyAddress;
+        QString m_httpTunnelAddress;
+        QString m_nouce;
 
-//         User* me;
-//         Config* config;
-//         struct userlist* ul;
+        QString m_from;
+
 //         QHash<QString, Conversation*> contactConvHash;
 };
 

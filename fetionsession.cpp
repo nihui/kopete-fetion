@@ -2,6 +2,7 @@
 
 #include "fetioncontact.h"
 #include "fetionprotocol.h"
+#include "fetionsipevent.h"
 #include "fetionsipnotifier.h"
 #include "fetionvcodedialog.h"
 
@@ -20,6 +21,8 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QSslConfiguration>
+
+#include <ctime>
 
 static QByteArray myhash( int userId, QByteArray password )
 {
@@ -42,6 +45,17 @@ static QByteArray myhash( int userId, QByteArray password )
     return digest2;
 }
 
+static QString generateNouce()
+{
+    qsrand( time( NULL ) );
+    QString nouce;
+    nouce.sprintf( "%04X%04X%04X%04X%04X%04X%04X%04X",
+                   qrand() & 0xFFFF , qrand() & 0xFFFF,
+                   qrand() & 0xFFFF , qrand() & 0xFFFF,
+                   qrand() & 0xFFFF , qrand() & 0xFFFF,
+                   qrand() & 0xFFFF , qrand() & 0xFFFF );
+    return nouce;
+}
 
 FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 {
@@ -65,11 +79,58 @@ void FetionSession::setLoginInformation( const QString& accountId, const QString
 #define PROTO_VERSION "4.0.2510"
 void FetionSession::login()
 {
+    /// post xml system config data
+    /// we do not use qdomdocument here since the data xml node attributes are order-sensitive
+    QString xml;
+    xml += "<config>";
+    xml += "<user mobile-no=\"";
+    xml += m_accountId;
+    xml += "\"/>";
+    xml += "<client type=\"PC\" version=\""PROTO_VERSION"\" platform=\"W5.1\"/>";
+    xml += "<servers version=\"0\"/><parameters version=\"0\"/><hints version=\"0\"/>";
+//         xml += "<client-config veersion=\"0\"/><services veersion=\"0\"/>";
+    xml += "</config>";
+
+    /// get system configuration
+    QNetworkRequest request;
+
+    QUrl url;
+    url.setUrl( "http://nav.fetion.com.cn/nav/getsystemconfig.aspx" );
+    url.setPort( 80 );
+    request.setUrl( url );
+
+    request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
+    request.setRawHeader( "Host", "nav.fetion.com.cn" );
+    request.setRawHeader( "Connection", "Close" );
+    request.setRawHeader( "Content-Length", QString::number( xml.toAscii().size() ).toAscii() );
+    qWarning() << "@@@@@@@@@" << QString::number( xml.toAscii().size() );
+
+    QNetworkReply* r = manager->post( request, xml.toAscii() );
+    connect( r, SIGNAL(finished()), this, SLOT(getSystemConfigFinished()) );
+}
+
+void FetionSession::getSystemConfigFinished()
+{
+    QNetworkReply* reply = (QNetworkReply*)sender();
+    QString data = QString::fromUtf8( reply->readAll() );
+    reply->deleteLater();
+
+    QDomDocument doc;
+    doc.setContent( data );
+    QDomElement docElem = doc.documentElement();
+    QDomElement serversElem = docElem.firstChildElement( "servers" );
+    m_ssiAppSignInV2Uri = serversElem.firstChildElement( "ssi-app-sign-in-v2" ).text();
+    m_getPicCodeUri = serversElem.firstChildElement( "get-pic-code" ).text();
+    m_sipcProxyAddress = serversElem.firstChildElement( "sipc-proxy" ).text();
+    m_sipcSslProxyAddress = serversElem.firstChildElement( "sipc-ssl-proxy" ).text();
+    m_httpTunnelAddress = serversElem.firstChildElement( "http-tunnel" ).text();
+
+    /// ssi auth
     QNetworkRequest request;
     request.setSslConfiguration( QSslConfiguration::defaultConfiguration() );
 
     QUrl url;
-    url.setUrl( "https://uid.fetion.com.cn/ssiportal/SSIAppSignInV4.aspx" );
+    url.setUrl( m_ssiAppSignInV2Uri );
     url.setPort( 443 );
     url.addQueryItem( "mobileno", m_accountId );
     url.addQueryItem( "domains", "fetion.com.cn" );
@@ -89,8 +150,8 @@ void FetionSession::login()
     request.setRawHeader( "Cache-Control", "private" );
     request.setRawHeader( "Connection", "Keep-Alive" );
 
-    QNetworkReply* reply = manager->get( request );
-    connect( reply, SIGNAL(finished()), this, SLOT(ssiAuthFinished()) );
+    QNetworkReply* r = manager->get( request );
+    connect( r, SIGNAL(finished()), this, SLOT(ssiAuthFinished()) );
 }
 
 void FetionSession::ssiAuthFinished()
@@ -116,12 +177,12 @@ void FetionSession::ssiAuthFinished()
         QNetworkRequest request;
 
         QUrl url;
-        url.setUrl( "http://nav.fetion.com.cn/nav/GetPicCodeV4.aspx" );
+        url.setUrl( m_getPicCodeUri );
         url.setPort( 80 );
         url.addQueryItem( "algorithm", algorithm );// + " HTTP/1.1" );
         request.setUrl( url );
 
-        request.setRawHeader( "User-Agent", "IIC2.0/pc "PROTO_VERSION );
+        request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
         request.setRawHeader( "Host", "nav.fetion.com.cn" );
         request.setRawHeader( "Connection", "Close" );
 
@@ -134,54 +195,30 @@ void FetionSession::ssiAuthFinished()
         qWarning() << "fetion login success   :)";
         /// emit success signal
         QDomElement userElem = docElem.firstChildElement( "user" );
-        QString uri = userElem.attribute( "uri" );
+        QString sipuri = userElem.attribute( "uri" );
         QString mobileno = userElem.attribute( "mobile-no" );
         QString userstatus = userElem.attribute( "user-status" );
         QString userid = userElem.attribute( "user-id" );
 
-        /// post xml system config data
-        QDomDocument doc;
-        QDomElement root = doc.createElement( "config" );
-        doc.appendChild( root );
-        QDomElement myuserElem = doc.createElement( "user" );
-        myuserElem.setAttribute( "mobile-no", m_accountId );
-        root.appendChild( myuserElem );
-        QDomElement clientElem = doc.createElement( "client" );
-        clientElem.setAttribute( "type", "PC" );
-        clientElem.setAttribute( "version", PROTO_VERSION );
-        clientElem.setAttribute( "platform", "W5.1" );
-        root.appendChild( clientElem );
-        QDomElement serverElem = doc.createElement( "server" );
-        serverElem.setAttribute( "version", "" );/// TODO
-        root.appendChild( serverElem );
-        QDomElement parametersElem = doc.createElement( "parameters" );
-        parametersElem.setAttribute( "version", "" );/// TODO
-        root.appendChild( parametersElem );
-        QDomElement hintsElem = doc.createElement( "hints" );
-        hintsElem.setAttribute( "version", "" );/// TODO
-        root.appendChild( hintsElem );
+        QString sId = sipuri.section( ':', 1, -1, QString::SectionSkipEmpty ).section( '@', 0, 0, QString::SectionSkipEmpty );
+        m_from = sId;
 
-        QString xml = doc.toString( -1 );//.split( '\n' ).join( "" );
-        qWarning() << xml;
+        /// connect to sipc server
+        QString sipcAddressIp = m_sipcProxyAddress.section( ':', 0, 0, QString::SectionSkipEmpty );
+        int sipcAddressPort = m_sipcProxyAddress.section( ':', -1, -1, QString::SectionSkipEmpty ).toInt();
+        notifier = new FetionSipNotifier( this );
+        notifier->connectToHost( sipcAddressIp, sipcAddressPort );
 
-        /// get system configuration
-        QNetworkRequest request;
-
-        QUrl url;
-        url.setUrl( "http://nav.fetion.com.cn/nav/getsystemconfig.aspx" );
-        url.setPort( 80 );
-        request.setUrl( url );
-
-        request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
-        request.setRawHeader( "Host", "nav.fetion.com.cn" );
-        request.setRawHeader( "Connection", "Close" );
-        request.setRawHeader( "Content-Length", QString::number( xml.toAscii().size() ).toAscii() );
-
-        QNetworkReply* r = manager->post( request, xml.toAscii() );
-        connect( r, SIGNAL(finished()), this, SLOT(getSystemConfigFinished()) );
-        return;
-//         notifier = new FetionSipNotifier( this );
-//         notifier->connectToHost( "nav.fetion.com.cn", 80 );
+        /// sipc register
+        QString m_nouce = generateNouce();
+        FetionSipEvent registerEvent( FetionSipEvent::SipRegister, FetionSipEvent::EventUnknown );
+        registerEvent.addHeader( "F", m_from );
+        registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+        registerEvent.addHeader( "Q", "2 R" );
+        registerEvent.addHeader( "CN", m_nouce );
+        registerEvent.addHeader( "CL", "type=\"pc\" ,version=\""PROTO_VERSION"\"" );
+        qWarning() << registerEvent.toString();
+        notifier->sendSipEvent( registerEvent );
     }
 }
 
@@ -208,12 +245,113 @@ void FetionSession::getCodePicFinished()
     login();
 }
 
-void FetionSession::getSystemConfigFinished()
+void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
-    QNetworkReply* reply = (QNetworkReply*)sender();
-    QString data = QString::fromUtf8( reply->readAll() );
-    reply->deleteLater();
-    qWarning() << data;
+    switch ( sipEvent.sipType() ) {
+        case FetionSipEvent::SipInvitation: {
+//                 qWarning() << contentStr;
+
+//                 QString from = newEvent.getFirstValue( "F" );
+//                 QString auth = newEvent.getFirstValue( "A" );
+//                 QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
+//                 QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
+//                 QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
+//                 QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
+//                 QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
+
+//                 FetionSipNotifier conversionNotifier;
+//                 qWarning() << "Received a conversation invitation";
+//
+//                 conversionNotifier.connectToHost( firstAddress, firstPort.toInt() );
+//
+//                 FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0, FetionSipEvent::EventUnknown );
+//                 returnEvent.setTypeAddition( "200 OK" );
+//                 returnEvent.addHeader( "F", from );
+//                 returnEvent.addHeader( "I", "-61" );
+//                 returnEvent.addHeader( "Q", "200002 I" );
+//
+//                 conversionNotifier.sendSipEvent( returnEvent );
+//
+//                 FetionSipEvent registerEvent( FetionSipEvent::SipRegister, FetionSipEvent::EventUnknown );
+//                 registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
+//                 registerEvent.addHeader( "K", "text/html-fragment" );
+//                 registerEvent.addHeader( "K", "multiparty" );
+//                 registerEvent.addHeader( "K", "nudge" );
+//
+//                 qWarning() << "Register to conversation server" << firstAddressPort;
+//                 conversionNotifier.sendSipEvent( registerEvent );
+
+            ///memset( buf, '\0', sizeof(buf)*sizeof(char) );
+            ///int port = tcp_connection_recv( conn , buf , sizeof(buf)*sizeof(char) );
+
+            ///memset( conversionSip->sipuri, 0, sizeof(conversionSip->sipuri)*sizeof(char) );
+            ///strcpy( conversionSip->sipuri, from.toAscii().constData() );
+
+//                 emit newThreadEntered( conversionSip, user );
+            break;
+        }
+        case FetionSipEvent::SipMessage: {
+//                 qWarning() << contentStr;
+
+//                 QString from = newEvent.getFirstValue( "F" );
+//                 QString callid = newEvent.getFirstValue( "I" );
+//                 QString sequence = newEvent.getFirstValue( "Q" );
+//                 QString sendtime = newEvent.getFirstValue( "D" );
+//
+//                 FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0, FetionSipEvent::EventUnknown );
+//                 returnEvent.setTypeAddition( "200 OK" );
+//                 returnEvent.addHeader( "F", from );
+//                 returnEvent.addHeader( "I", callid );
+//                 returnEvent.addHeader( "Q", sequence );
+//                 sendSipEvent( returnEvent );
+
+            ///char* sid = fetion_sip_get_sid_by_sipuri( from.toAscii().constData() );
+            ///emit messageReceived( QString( sid ), contentStr, from );
+            break;
+        }
+        case FetionSipEvent::SipIncoming: {
+            break;
+        }
+        case FetionSipEvent::SipNotification: {
+//                 if ( notificationType == QLatin1String( "PresenceV4" ) ) {
+//                     /// NOTIFICATION_TYPE_PRESENCE
+//                 }
+//                 else if ( notificationType == QLatin1String( "Conversation" ) ) {
+//                     /// NOTIFICATION_TYPE_CONVERSATION
+//                 }
+//                 else if ( notificationType == QLatin1String( "contact" ) ) {
+//                     /// NOTIFICATION_TYPE_CONTACT
+//                 }
+//                 else if ( notificationType == QLatin1String( "registration" ) ) {
+//                     /// NOTIFICATION_TYPE_REGISTRATION
+//                 }
+//                 else if ( notificationType == QLatin1String( "SyncUserInfoV4" ) ) {
+//                     /// NOTIFICATION_TYPE_SYNCUSERINFO
+//                 }
+//                 else if ( notificationType == QLatin1String( "PGGroup" ) ) {
+//                     /// NOTIFICATION_TYPE_PGGROUP
+//                 }
+//                 else {
+//                     /// NOTIFICATION_TYPE_UNKNOWN
+//                 }
+    //         QDomDocument doc;
+    //         doc.setContent( list.last() );
+            break;
+        }
+        case FetionSipEvent::SipOption: {
+            break;
+        }
+        case FetionSipEvent::SipSipc_4_0: {
+//                 if ( callid == "5" ) {
+//                     /// contact information return
+//                 }
+            break;
+        }
+        case FetionSipEvent::SipUnknown: {
+            qWarning() << "unknown sip message";
+            return;
+        }
+    }
 }
 
 // {
@@ -518,10 +656,10 @@ void FetionSession::sendMobilePhoneMessage( const QString& sId, const QString& m
 // {
 // }
 
-void FetionSession::slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri )
-{
-    emit gotMessage( sId, msgContent );
-}
+// void FetionSession::slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri )
+// {
+//     emit gotMessage( sId, msgContent );
+// }
 
 // void FetionSession::slotNewThreadEntered( FetionSip* sip, User* user )
 // {

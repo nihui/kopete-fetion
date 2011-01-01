@@ -2,10 +2,13 @@
 
 #include <QDebug>
 
+int FetionSipEvent::m_callid = 0;
+
 FetionSipEvent::FetionSipEvent( SipType sipType, EventType eventType )
 {
     m_sipType = sipType;
     m_eventType = eventType;
+    m_typeAddition = "fetion.com.cn SIP-C/4.0";
 }
 
 FetionSipEvent::FetionSipEvent( const QString& typeStr, const QString& headerStr )
@@ -87,7 +90,7 @@ void FetionSipEvent::setContent( const QString& content )
 QString FetionSipEvent::toString() const
 {
     QString str;
-    str += FetionSipEvent::sipTypeToString( m_sipType ) + ' ' + m_typeAddition + "\r\n";//" fetion.com.cn SIP-C/4.0\r\n";
+    str += FetionSipEvent::sipTypeToString( m_sipType ) + ' ' + m_typeAddition + "\r\n";
 
     QList<QPair<QString, QString> >::ConstIterator it = m_header.constBegin();
     QList<QPair<QString, QString> >::ConstIterator end = m_header.constEnd();
@@ -243,4 +246,14 @@ FetionSipEvent::EventType FetionSipEvent::StringToEventType( const QString& even
     if ( eventTypeStr == QLatin1String( "PGPresence" ) )
         return FetionSipEvent::EventPGPresence;
     return FetionSipEvent::EventUnknown;
+}
+
+void FetionSipEvent::resetCallid()
+{
+    FetionSipEvent::m_callid = 0;
+}
+
+int FetionSipEvent::nextCallid()
+{
+    return FetionSipEvent::m_callid++;
 }

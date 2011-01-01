@@ -69,12 +69,15 @@ class FetionSipEvent : public QObject
         static SipType stringToSipType( const QString& sipTypeStr );
         static QString eventTypeToString( EventType eventType );
         static EventType StringToEventType( const QString& eventTypeStr );
+        static void resetCallid();
+        static int nextCallid();
     private:
         SipType m_sipType;
         EventType m_eventType;
         QString m_typeAddition;
         QList<QPair<QString, QString> > m_header;
         QString m_content;
+        static int m_callid;
 };
 
 #endif // FETIONSIPEVENT_H
