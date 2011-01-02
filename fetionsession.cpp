@@ -66,7 +66,7 @@ static QByteArray generateAesKey()
     randfile.open( QIODevice::ReadOnly );
     QByteArray key = randfile.read( 64 );
     randfile.close();
-    return key;
+    return QByteArray::fromHex( "4A026855890197CFDF768597D07200B346F3D676411C6F87368B5C2276DCEDD2" );
 }
 
 FetionSession::FetionSession( QObject* parent ) : QObject(parent)
@@ -225,7 +225,7 @@ void FetionSession::ssiAuthFinished()
 
         /// sipc register
         QString m_nouce = generateNouce();
-        FetionSipEvent registerEvent( FetionSipEvent::SipRegister, FetionSipEvent::EventUnknown );
+        FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
         registerEvent.addHeader( "F", m_from );
         registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
         registerEvent.addHeader( "Q", "2 R" );
@@ -263,7 +263,7 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
 //     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
-        case FetionSipEvent::SipInvitation: {
+        case FetionSipEvent::SipInvite: {
 //                 QString from = newEvent.getFirstValue( "F" );
 //                 QString auth = newEvent.getFirstValue( "A" );
 //                 QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
@@ -320,10 +320,10 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             ///emit messageReceived( QString( sid ), contentStr, from );
             break;
         }
-        case FetionSipEvent::SipIncoming: {
+        case FetionSipEvent::SipInfo: {
             break;
         }
-        case FetionSipEvent::SipNotification: {
+        case FetionSipEvent::SipNotify: {
 //                 if ( notificationType == QLatin1String( "PresenceV4" ) ) {
 //                     /// NOTIFICATION_TYPE_PRESENCE
 //                 }
@@ -361,8 +361,8 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
                 QString signature = wstr.section( '\"', 7, 7, QString::SectionSkipEmpty );
 
                 QByteArray aeskey = generateAesKey();
-                QByteArray hidden = nonce.toAscii() + myhash( m_userId.toAscii(), m_password.toAscii() ) + aeskey;
-
+                QByteArray passwordhash = myhash( m_userId.toAscii(), m_password.toAscii() );
+                QByteArray hidden = nonce.toAscii() + passwordhash + aeskey;
                 const char* publickey = key.toAscii().constData();
                 const unsigned char* fromdata = (const unsigned char*)hidden.constData();
                 char modulus[256];
@@ -380,19 +380,20 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
                 int flen = RSA_size( r );
                 unsigned char* outdata = (unsigned char*)malloc( flen );
                 int ret = RSA_public_encrypt( hidden.size(), fromdata, outdata, r, RSA_PKCS1_PADDING );
-                qWarning() << "rsa public encrypt" << ret;
                 RSA_free( r );
 
-                QByteArray response( (char*)outdata );
+                QByteArray response = QByteArray::fromRawData( (char*)outdata, flen );
+                response = response.toHex();
                 free( outdata );
+                qWarning() << "rsa public encrypt" << ret << response;
 
-                FetionSipEvent sipcAuthActionEvent( FetionSipEvent::SipRegister, FetionSipEvent::EventUnknown );
+                FetionSipEvent sipcAuthActionEvent( FetionSipEvent::SipRegister );
                 sipcAuthActionEvent.addHeader( "F", m_from );
                 sipcAuthActionEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
                 sipcAuthActionEvent.addHeader( "Q", "2 R" );
                 QString Astr;
                 Astr += "Digest response=\"";
-                Astr += response.toHex();
+                Astr += response;
                 Astr += "\",algorithm=\"SHA1-sess-v4\"";
                 sipcAuthActionEvent.addHeader( "A", Astr );
                 sipcAuthActionEvent.addHeader( "AK", "ak-value" );
@@ -412,6 +413,8 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
                 authContent += "<credentials domains=\"fetion.com.cn\"/>";
                 authContent += "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
                 sipcAuthActionEvent.setContent( authContent );
+
+                qWarning() << sipcAuthActionEvent.toString();
 
                 notifier->sendSipEvent( sipcAuthActionEvent );
             }

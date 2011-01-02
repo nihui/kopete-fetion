@@ -4,15 +4,15 @@
 
 int FetionSipEvent::m_callid = 0;
 
-FetionSipEvent::FetionSipEvent( SipType sipType, EventType eventType )
+FetionSipEvent::FetionSipEvent( SipType sipType )
 {
     m_sipType = sipType;
-    m_eventType = eventType;
     m_typeAddition = "fetion.com.cn SIP-C/4.0";
 }
 
 FetionSipEvent::FetionSipEvent( const QString& typeStr, const QString& headerStr )
 {
+    qWarning() << "construct sip event" << typeStr << headerStr;
     m_sipType = FetionSipEvent::stringToSipType( typeStr.section( QLatin1Char( ' ' ), 0, 0, QString::SectionSkipEmpty ) );
     m_typeAddition = typeStr.section( QLatin1Char( ' ' ), 1, -1, QString::SectionSkipEmpty );
 
@@ -33,11 +33,6 @@ FetionSipEvent::~FetionSipEvent()
 FetionSipEvent::SipType FetionSipEvent::sipType() const
 {
     return m_sipType;
-}
-
-FetionSipEvent::EventType FetionSipEvent::eventType() const
-{
-    return m_eventType;
 }
 
 void FetionSipEvent::setTypeAddition( const QString& addition )
@@ -113,17 +108,21 @@ QString FetionSipEvent::toString() const
 QString FetionSipEvent::sipTypeToString( SipType sipType )
 {
     static const QString sipTypeString[] = {
-        "",             // SipUnknown
+        "A"             // SipAcknowledge
+        "BN",           // SipBENotify
+        "B",            // SipBye
+        "",             // SipCancel TODO
+        "IN",           // SipInfo
+        "I",            // SipInvite
+        "M",            // SipMessage
+        "",             // SipNegotiate TODO
+        "NB",           // SipNotify
+        "O",            // SipOption
+        "",             // SipRefer TODO
         "R",            // SipRegister
         "S",            // SipService
-        "SUB",          // SipSubscription
-        "NB",           // SipNotification
-        "I",            // SipInvitation
-        "IN",           // SipIncoming
-        "O",            // SipOption
-        "M",            // SipMessage
+        "SUB",          // SipSubscribe
         "SIP-C/4.0",    // SipSipc_4_0
-        "A"             // SipAcknowledge
     };
 
     if ( sipType < 0 || sipType > 11 ) {
@@ -140,13 +139,13 @@ FetionSipEvent::SipType FetionSipEvent::stringToSipType( const QString& sipTypeS
     if ( sipTypeStr == QLatin1String( "S" ) )
         return FetionSipEvent::SipService;
     if ( sipTypeStr == QLatin1String( "SUB" ) )
-        return FetionSipEvent::SipSubScription;
+        return FetionSipEvent::SipSubScribe;
     if ( sipTypeStr == QLatin1String( "NB" ) )
-        return FetionSipEvent::SipNotification;
+        return FetionSipEvent::SipNotify;
     if ( sipTypeStr == QLatin1String( "I" ) )
-        return FetionSipEvent::SipInvitation;
+        return FetionSipEvent::SipInvite;
     if ( sipTypeStr == QLatin1String( "IN" ) )
-        return FetionSipEvent::SipIncoming;
+        return FetionSipEvent::SipInfo;
     if ( sipTypeStr == QLatin1String( "O" ) )
         return FetionSipEvent::SipOption;
     if ( sipTypeStr == QLatin1String( "M" ) )
@@ -155,97 +154,9 @@ FetionSipEvent::SipType FetionSipEvent::stringToSipType( const QString& sipTypeS
         return FetionSipEvent::SipSipc_4_0;
     if ( sipTypeStr == QLatin1String( "A" ) )
         return FetionSipEvent::SipAcknowledge;
+    if ( sipTypeStr == QLatin1String( "BN" ) )
+        return FetionSipEvent::SipBENotify;
     return FetionSipEvent::SipUnknown;
-}
-
-QString FetionSipEvent::eventTypeToString( EventType eventType )
-{
-    static const QString eventTypeString[] = {
-        "PresenceV4",               // EventPresence
-        "SetPresenceV4",            // EventSetPresence
-        "",                         // TODO EventContact
-        "Conversation",             // EventConversation
-        "CatMsg",                   // EventCatMessage
-        "SendCatSMS",               // EventSendCatMessage
-        "StartChat",                // EventStartChat
-        "InviteBuddy",              // EventInviteBuddy
-        "GetContactInfoV4",         // EventGetContactInfo
-        "CreateBuddyList",          // EventCreateBuddyList
-        "DeleteBuddyList",          // EventDeleteBuddyList
-        "SetContactInfoV4",         // EventSetContactInfo
-        "SetUserInfoV4",            // EventSetUserInfo
-        "SetBuddyListInfo",         // EventSetBuddyListInfo
-        "DeleteBuddyV4",            // EventDeleteBuddy
-        "AddBuddyV4",               // EventAddBuddy
-        "KeepAlive",                // EventKeepAlive
-        "DirectSMS",                // EventDirectSMS
-        "SendDirectCatSMS",         // EventSendDirectCatSMS
-        "HandleContactRequestV4",   // EventHandleContactRequest
-        "PGGetGroupList",           // EventPGGetGroupList
-        "PGGetGroupInfo",           // EventPGGetGroupInfo
-        "PGGetGroupMembers",        // EventPGGetGroupMembers
-        "PGSendCatSMS",             // EventPGSendCatSMS
-        "PGPresence"                // EventPGPresence
-    };
-
-    if ( eventType < 0 || eventType > 24 ) {
-        qWarning() << "Unexpected event type" << (int)eventType;
-        return QString();
-    }
-    return eventTypeString[ (int)eventType ];
-}
-
-FetionSipEvent::EventType FetionSipEvent::StringToEventType( const QString& eventTypeStr )
-{
-    if ( eventTypeStr == QLatin1String( "PresenceV4" ) )
-        return FetionSipEvent::EventPresence;
-    if ( eventTypeStr == QLatin1String( "SetPresenceV4" ) )
-        return FetionSipEvent::EventSetPresence;
-    if ( eventTypeStr == QLatin1String( "Conversation" ) )
-        return FetionSipEvent::EventConversation;
-    if ( eventTypeStr == QLatin1String( "CatMsg" ) )
-        return FetionSipEvent::EventCatMessage;
-    if ( eventTypeStr == QLatin1String( "SendCatSMS" ) )
-        return FetionSipEvent::EventSendCatMessage;
-    if ( eventTypeStr == QLatin1String( "StartChat" ) )
-        return FetionSipEvent::EventStartChat;
-    if ( eventTypeStr == QLatin1String( "InviteBuddy" ) )
-        return FetionSipEvent::EventInviteBuddy;
-    if ( eventTypeStr == QLatin1String( "GetContactInfoV4" ) )
-        return FetionSipEvent::EventGetContactInfo;
-    if ( eventTypeStr == QLatin1String( "CreateBuddyList" ) )
-        return FetionSipEvent::EventCreateBuddyList;
-    if ( eventTypeStr == QLatin1String( "DeleteBuddyList" ) )
-        return FetionSipEvent::EventDeleteBuddyList;
-    if ( eventTypeStr == QLatin1String( "SetContactInfoV4" ) )
-        return FetionSipEvent::EventSetContactInfo;
-    if ( eventTypeStr == QLatin1String( "SetUserInfoV4" ) )
-        return FetionSipEvent::EventSetUserInfo;
-    if ( eventTypeStr == QLatin1String( "SetBuddyListInfo" ) )
-        return FetionSipEvent::EventSetBuddyListInfo;
-    if ( eventTypeStr == QLatin1String( "DeleteBuddyV4" ) )
-        return FetionSipEvent::EventDeleteBuddy;
-    if ( eventTypeStr == QLatin1String( "AddBuddyV4" ) )
-        return FetionSipEvent::EventAddBuddy;
-    if ( eventTypeStr == QLatin1String( "KeepAlive" ) )
-        return FetionSipEvent::EventKeepAlive;
-    if ( eventTypeStr == QLatin1String( "DirectSMS" ) )
-        return FetionSipEvent::EventDirectSMS;
-    if ( eventTypeStr == QLatin1String( "SendDirectCatSMS" ) )
-        return FetionSipEvent::EventSendDirectCatSMS;
-    if ( eventTypeStr == QLatin1String( "HandleContactRequestV4" ) )
-        return FetionSipEvent::EventHandleContactRequest;
-    if ( eventTypeStr == QLatin1String( "PGGetGroupList" ) )
-        return FetionSipEvent::EventPGGetGroupList;
-    if ( eventTypeStr == QLatin1String( "PGGetGroupInfo" ) )
-        return FetionSipEvent::EventPGGetGroupInfo;
-    if ( eventTypeStr == QLatin1String( "PGGetGroupMembers" ) )
-        return FetionSipEvent::EventPGGetGroupMembers;
-    if ( eventTypeStr == QLatin1String( "PGSendCatSMS" ) )
-        return FetionSipEvent::EventPGSendCatSMS;
-    if ( eventTypeStr == QLatin1String( "PGPresence" ) )
-        return FetionSipEvent::EventPGPresence;
-    return FetionSipEvent::EventUnknown;
 }
 
 void FetionSipEvent::resetCallid()

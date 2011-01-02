@@ -31,11 +31,14 @@ void FetionSipNotifier::sendSipEvent( const FetionSipEvent& sipEvent )
 
 void FetionSipNotifier::slotReadyRead()
 {
+    /// storing data received from last read
+    static QString pendingBuffer;
+
     QByteArray data = m_socket.readAll();
     if ( data.isEmpty() )
         return;
 
-    QString datastr = QString::fromUtf8( data );
+    QString datastr = pendingBuffer + QString::fromUtf8( data );
     qWarning() << datastr;
 
     int index = 0;
@@ -52,8 +55,19 @@ void FetionSipNotifier::slotReadyRead()
         QString sipheaderStr = headerStr.section( "\r\n", 1, -1, QString::SectionSkipEmpty );
         FetionSipEvent newEvent( siptypeStr, sipheaderStr );
 
+        QString contentLengthStr = newEvent.getFirstValue( "L" );
+        if ( !contentLengthStr.isEmpty() ) {
+            int contentLength = contentLengthStr.toInt();
+            if ( len - headerEnd < contentLength ) {
+                /// data has been split into more than one read, pending it
+                pendingBuffer = datastr.right( len - headerBegin );
+                return;
+            }
+            pendingBuffer.clear();
+        }
+
         switch ( newEvent.sipType() ) {
-            case FetionSipEvent::SipInvitation: {
+            case FetionSipEvent::SipInvite: {
                 int contentBegin = datastr.indexOf( "s=", headerEnd );
                 int contentEnd = datastr.size();/// FIXME: i'm just lazy here...  ;)  --- nihui
                 QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
@@ -71,11 +85,11 @@ void FetionSipNotifier::slotReadyRead()
                 emit sipEventReceived( newEvent );
                 break;
             }
-            case FetionSipEvent::SipIncoming: {
+            case FetionSipEvent::SipInfo: {
                 emit sipEventReceived( newEvent );
                 break;
             }
-            case FetionSipEvent::SipNotification: {
+            case FetionSipEvent::SipNotify: {
                 QString sid = newEvent.typeAddition().section( ' ', 0, 0, QString::SectionSkipEmpty );
                 QString notificationType = newEvent.getFirstValue( "N" );
                 int contentBegin = datastr.indexOf( "<events>", headerEnd );
