@@ -82,6 +82,11 @@ void FetionSipEvent::setContent( const QString& content )
     m_content = content;
 }
 
+QString FetionSipEvent::getContent() const
+{
+    return m_content;
+}
+
 QString FetionSipEvent::toString() const
 {
     QString str;
@@ -108,7 +113,8 @@ QString FetionSipEvent::toString() const
 QString FetionSipEvent::sipTypeToString( SipType sipType )
 {
     static const QString sipTypeString[] = {
-        "A"             // SipAcknowledge
+        "",             // SipUnknown
+        "A",            // SipAcknowledge
         "BN",           // SipBENotify
         "B",            // SipBye
         "",             // SipCancel TODO
@@ -125,7 +131,7 @@ QString FetionSipEvent::sipTypeToString( SipType sipType )
         "SIP-C/4.0",    // SipSipc_4_0
     };
 
-    if ( sipType < 0 || sipType > 11 ) {
+    if ( sipType < 0 || sipType > 15 ) {
         qWarning() << "Unexpected sip type" << (int)sipType;
         return QString();
     }

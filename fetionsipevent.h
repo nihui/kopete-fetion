@@ -11,22 +11,22 @@ class FetionSipEvent : public QObject
 {
     public:
         typedef enum {
-            SipUnknown                  = -1,
-            SipAcknowledge              = 0,
-            SipBENotify                 = 1,
-            SipBye                      = 2,
-            SipCancel                   = 3,
-            SipInfo                     = 4,
-            SipInvite                   = 5,
-            SipMessage                  = 6,
-            SipNegotiate                = 7,
-            SipNotify                   = 8,
-            SipOption                   = 9,
-            SipRefer                    = 10,
-            SipRegister                 = 11,
-            SipService                  = 12,
-            SipSubScribe                = 13,
-            SipSipc_4_0                 = 14
+            SipUnknown                  = 0,
+            SipAcknowledge              = 1,
+            SipBENotify                 = 2,
+            SipBye                      = 3,
+            SipCancel                   = 4,
+            SipInfo                     = 5,
+            SipInvite                   = 6,
+            SipMessage                  = 7,
+            SipNegotiate                = 8,
+            SipNotify                   = 9,
+            SipOption                   = 10,
+            SipRefer                    = 11,
+            SipRegister                 = 12,
+            SipService                  = 13,
+            SipSubScribe                = 14,
+            SipSipc_4_0                 = 15
         } SipType;
 
         explicit FetionSipEvent( SipType sipType );
@@ -39,6 +39,7 @@ class FetionSipEvent : public QObject
         QStringList getValues( const QString& key ) const;
         QString getFirstValue( const QString& key ) const;
         void setContent( const QString& content );
+        QString getContent() const;
         QString toString() const;
         static QString sipTypeToString( SipType sipType );
         static SipType stringToSipType( const QString& sipTypeStr );

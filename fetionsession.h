@@ -44,6 +44,8 @@ class FetionSession : public QObject
 //         void disconnect();
 //         void setStatus( const Kopete::OnlineStatus& status );
     Q_SIGNALS:
+        void gotBuddyList( const QString& buddyListName );
+        void gotBuddy( const QString& buddyId );
 //         void connectionSuccessed();
 //         void connectionFailed();
         void contactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status );

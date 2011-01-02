@@ -418,6 +418,27 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 
                 notifier->sendSipEvent( sipcAuthActionEvent );
             }
+            else if ( sipEvent.typeAddition() == "200 OK" ) {
+                /// sipc register success
+                /// extract buddy lists and buddies
+                QDomDocument doc;
+                doc.setContent( sipEvent.getContent() );
+                QDomElement docElem = doc.documentElement();
+                QDomElement userinfoElem = doc.firstChildElement( "user-info" );
+                QDomElement contactlistElem = userinfoElem.firstChildElement( "contact-list" );
+                QDomElement buddylistsElem = contactlistElem.firstChildElement( "buddy-lists" );
+                QDomElement buddylistElem = buddylistsElem.firstChildElement( "buddy-list" );
+                while ( !buddylistElem.isNull() ) {
+                    gotBuddyList( buddylistElem.attribute( "name" ) );
+                    buddylistElem = buddylistElem.nextSiblingElement( "buddy-list" );
+                }
+                QDomElement buddiesElem = contactlistElem.firstChildElement( "buddies" );
+                QDomElement buddyElem = contactlistElem.firstChildElement( "b" );
+                while ( !buddyElem.isNull() ) {
+                    gotBuddy( buddyElem.attribute( "i" ) );
+                    buddyElem = buddyElem.nextSiblingElement( "b" );
+                }
+            }
 //                 if ( callid == "5" ) {
 //                     /// contact information return
 //                 }
