@@ -46,7 +46,7 @@ set(kopete_fetion_PART_SRCS
     fetionsession.cpp
     fetionsipevent.cpp
     fetionsipnotifier.cpp
-    fetionutils.cpp
+    fetionsiputils.cpp
     fetionvcodedialog.cpp
 )
 

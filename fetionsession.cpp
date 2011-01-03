@@ -4,7 +4,7 @@
 #include "fetionprotocol.h"
 #include "fetionsipevent.h"
 #include "fetionsipnotifier.h"
-#include "fetionutils.h"
+#include "fetionsiputils.h"
 #include "fetionvcodedialog.h"
 
 #include <kopetechatsession.h>
@@ -213,7 +213,7 @@ void FetionSession::ssiAuthFinished()
         QString userstatus = userElem.attribute( "user-status" );
         m_userId = userElem.attribute( "user-id" );
 
-        QString sId = FetionUtils::SipUriToSid( sipuri );
+        QString sId = FetionSipUtils::SipUriToSid( sipuri );
         m_from = sId;
 
         /// connect to sipc server
