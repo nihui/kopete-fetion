@@ -22,8 +22,9 @@ class FetionSession : public QObject
         QString accountId() const;
         void setVisibility( bool isVisible );
         void setStatusMessage( const QString& status );
-        void sendClientMessage( const QString& sId, const QString& message );
-        void sendMobilePhoneMessage( const QString& sId, const QString& message );
+        void sendClientMessage( const QString& sipUri, const QString& message );
+        void sendMobilePhoneMessage( const QString& sipUri, const QString& message );
+        void sendMobilePhoneMessageToMyself( const QString& message );
 
     private Q_SLOTS:
 //         void replyFinished( QNetworkReply* reply );
@@ -62,6 +63,7 @@ class FetionSession : public QObject
         QString m_httpTunnelAddress;
         QString m_nouce;
 
+        QString m_sipUri;
         QString m_userId;
         QString m_from;
 };

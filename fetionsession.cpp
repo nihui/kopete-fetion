@@ -37,7 +37,6 @@ static QByteArray myhash( QByteArray userId, QByteArray password )
     QByteArray domain( "fetion.com.cn:" );
     QByteArray data = domain + password;
     QByteArray digest = QCryptographicHash::hash( data, QCryptographicHash::Sha1 );
-//     qWarning() << "hexdigest" << hexdigest;
     if ( userId.isEmpty() )
         return digest;
 
@@ -116,7 +115,6 @@ void FetionSession::login()
     request.setRawHeader( "Host", "nav.fetion.com.cn" );
     request.setRawHeader( "Connection", "Close" );
     request.setRawHeader( "Content-Length", QString::number( xml.toAscii().size() ).toAscii() );
-    qWarning() << "@@@@@@@@@" << QString::number( xml.toAscii().size() );
 
     QNetworkReply* r = manager->post( request, xml.toAscii() );
     connect( r, SIGNAL(finished()), this, SLOT(getSystemConfigFinished()) );
@@ -208,13 +206,12 @@ void FetionSession::ssiAuthFinished()
         qWarning() << "fetion login success   :)";
         /// emit success signal
         QDomElement userElem = docElem.firstChildElement( "user" );
-        QString sipuri = userElem.attribute( "uri" );
+        m_sipUri = userElem.attribute( "uri" );
         QString mobileno = userElem.attribute( "mobile-no" );
         QString userstatus = userElem.attribute( "user-status" );
         m_userId = userElem.attribute( "user-id" );
 
-        QString sId = FetionSipUtils::SipUriToSid( sipuri );
-        m_from = sId;
+        m_from = FetionSipUtils::SipUriToSid( m_sipUri );
 
         /// connect to sipc server
         QString sipcAddressIp = m_sipcProxyAddress.section( ':', 0, 0, QString::SectionSkipEmpty );
@@ -302,14 +299,12 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 sipcAuthActionEvent.addHeader( "F", m_from );
                 sipcAuthActionEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
                 sipcAuthActionEvent.addHeader( "Q", "2 R" );
-                QString Astr;
-                Astr += "Digest response=\"";
-                Astr += response;
-                Astr += "\",algorithm=\"SHA1-sess-v4\"";
+                QString Astr( "Digest response=\"%1\",algorithm=\"SHA1-sess-v4\"" );
+                Astr = Astr.arg( QLatin1String( response ) );
                 sipcAuthActionEvent.addHeader( "A", Astr );
                 sipcAuthActionEvent.addHeader( "AK", "ak-value" );
                 QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
-                ackaStr = ackaStr.arg(vcode).arg(algorithm).arg(type).arg(picid);
+                ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
                 sipcAuthActionEvent.addHeader( "A", ackaStr );
 
                 QString authContent = "<args><device machine-code=\"001676C0E351\"/><caps value=\"1ff\"/><events value=\"7f\"/>";
@@ -365,6 +360,9 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 subscribeEvent.setContent( subscribeBody );
                 qWarning() << subscribeEvent.toString();
                 notifier->sendSipEvent( subscribeEvent );
+
+                /// NOTE WARNING FIXME debug...
+                sendMobilePhoneMessageToMyself( "This is the first message from kopete-fetion plugin!!! --- nihui" );
             }
             break;
         }
@@ -424,9 +422,6 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             returnEvent.addHeader( "I", callid );
             returnEvent.addHeader( "Q", sequence );
             notifier->sendSipEvent( returnEvent );
-
-            ///char* sid = fetion_sip_get_sid_by_sipuri( from.toAscii().constData() );
-            ///emit messageReceived( QString( sid ), contentStr, from );
             break;
         }
         case FetionSipEvent::SipInfo: {
@@ -494,64 +489,50 @@ void FetionSession::setStatusMessage( const QString& status )
 {
 }
 
-void FetionSession::sendClientMessage( const QString& sId, const QString& message )
+void FetionSession::sendClientMessage( const QString& sipUri, const QString& message )
 {
-//     Contact* contact = fetion_contact_get_contact_info_by_no( me, sId.toAscii().constData(), FETION_NO );
-//     if ( !contact ) {
-//         qWarning() << "get contact information failed" << sId;
-//         return;
-//     }
+    FetionSipEvent sendEvent( FetionSipEvent::SipMessage );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 M" );
+    sendEvent.addHeader( "T", sipUri );
+    sendEvent.addHeader( "C", "text/plain" );
+    sendEvent.addHeader( "K", "SaveHistory" );
+    sendEvent.addHeader( "N", "CatMsg" );
 
-    /* find the sipuri of the target user */
-//     Contact* contact_cur;
-//     Contact* target_contact = NULL;
-//     foreach_contactlist( me->contactList, contact_cur ) {
-//         if(strcmp(contact_cur->userId, contact->userId) == 0) {
-//             target_contact = contact_cur;
-//             break;
-//         }
-//     }
+    sendEvent.setContent( message );
 
-//     if ( !target_contact ) {
-//         qWarning() << "not in your contact list" << sId;
-//         return;
-//     }
-
-//     Conversation* conv = fetion_conversation_new( me, target_contact->sipuri, NULL );
-
-//     fetion_conversation_send_sms( conv, message.toUtf8() );
+    notifier->sendSipEvent( sendEvent );
 }
 
-void FetionSession::sendMobilePhoneMessage( const QString& sId, const QString& message )
+void FetionSession::sendMobilePhoneMessage( const QString& sipUri, const QString& message )
 {
-//     Contact* contact = fetion_contact_get_contact_info_by_no( me, sId.toAscii(), FETION_NO );
-//     if ( !contact ) {
-//         qWarning() << "get contact information failed" << sId;
-//         return;
-//     }
-// 
-//     /* find the sipuri of the target user */
-//     Contact* contact_cur;
-//     Contact* target_contact = NULL;
-//     foreach_contactlist( me->contactList, contact_cur ) {
-//         if(strcmp(contact_cur->userId, contact->userId) == 0) {
-//             target_contact = contact_cur;
-//             break;
-//         }
-//     }
-// 
-//     if ( !target_contact ) {
-//         qWarning() << "not in your contact list" << sId;
-//         return;
-//     }
-// 
-//     Conversation* conv = fetion_conversation_new( me, target_contact->sipuri, NULL );
-// 
-//     int daycount;
-//     int monthcount;
-//     if ( fetion_conversation_send_sms_to_phone_with_reply( conv, message.toUtf8(), &daycount, &monthcount ) == -1 ) {
-//         qWarning() << "send sms failed";
-//         return;
-//     }
+    FetionSipEvent sendEvent( FetionSipEvent::SipMessage );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 M" );
+    sendEvent.addHeader( "T", sipUri );
+    QString Astr( "Verify algorithm=\"picc\",chid=\"%1\",response=\"%2\"" );
+    Astr = Astr.arg( picid ).arg( vcode );
+    sendEvent.addHeader( "A", Astr );
+    sendEvent.addHeader( "N", "SendCatSMS" );
+
+    sendEvent.setContent( message );
+
+    notifier->sendSipEvent( sendEvent );
+}
+
+void FetionSession::sendMobilePhoneMessageToMyself( const QString& message )
+{
+    FetionSipEvent sendEvent( FetionSipEvent::SipMessage );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 M" );
+    sendEvent.addHeader( "T", m_sipUri );
+    sendEvent.addHeader( "N", "SendCatSMS" );
+
+    sendEvent.setContent( message );
+
+    notifier->sendSipEvent( sendEvent );
 }
 
