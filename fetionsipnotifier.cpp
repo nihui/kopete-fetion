@@ -39,7 +39,7 @@ void FetionSipNotifier::slotReadyRead()
         return;
 
     QString datastr = pendingBuffer + QString::fromUtf8( data );
-    qWarning() << datastr;
+//     qWarning() << datastr;
 
     int index = 0;
     int len = datastr.size();

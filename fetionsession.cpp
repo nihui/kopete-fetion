@@ -221,7 +221,7 @@ void FetionSession::ssiAuthFinished()
         int sipcAddressPort = m_sipcProxyAddress.section( ':', -1, -1, QString::SectionSkipEmpty ).toInt();
         notifier = new FetionSipNotifier( this );
         connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
-                 this, SLOT(handleSipEvent(const FetionSipEvent&)) );
+                 this, SLOT(handleSipcRegisterReplyEvent(const FetionSipEvent&)) );
         notifier->connectToHost( sipcAddressIp, sipcAddressPort );
 
         /// sipc register
@@ -260,95 +260,9 @@ void FetionSession::getCodePicFinished()
     login();
 }
 
-void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
+void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent )
 {
-//     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
-        case FetionSipEvent::SipInvite: {
-            QString from = sipEvent.getFirstValue( "F" );
-            QString auth = sipEvent.getFirstValue( "A" );
-            QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
-            QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
-            QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
-            QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
-            QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
-
-            qWarning() << "Received a conversation invitation";
-            FetionSipNotifier* conversionNotifier = new FetionSipNotifier( this );
-            connect( conversionNotifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
-                     this, SLOT(handleSipEvent(const FetionSipEvent&)) );
-            conversionNotifier->connectToHost( firstAddress, firstPort.toInt() );
-
-            FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
-            returnEvent.setTypeAddition( "200 OK" );
-            returnEvent.addHeader( "F", from );
-            returnEvent.addHeader( "I", "-61" );
-            returnEvent.addHeader( "Q", "200002 I" );
-
-            conversionNotifier->sendSipEvent( returnEvent );
-
-            FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
-            registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
-            registerEvent.addHeader( "K", "text/html-fragment" );
-            registerEvent.addHeader( "K", "multiparty" );
-            registerEvent.addHeader( "K", "nudge" );
-
-            qWarning() << "Register to conversation server" << firstAddressPort;
-            conversionNotifier->sendSipEvent( registerEvent );
-            break;
-        }
-        case FetionSipEvent::SipMessage: {
-            QString from = sipEvent.getFirstValue( "F" );
-            QString callid = sipEvent.getFirstValue( "I" );
-            QString sequence = sipEvent.getFirstValue( "Q" );
-            QString sendtime = sipEvent.getFirstValue( "D" );
-
-            FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
-            returnEvent.setTypeAddition( "200 OK" );
-            returnEvent.addHeader( "F", from );
-            returnEvent.addHeader( "I", callid );
-            returnEvent.addHeader( "Q", sequence );
-            notifier->sendSipEvent( returnEvent );
-
-            ///char* sid = fetion_sip_get_sid_by_sipuri( from.toAscii().constData() );
-            ///emit messageReceived( QString( sid ), contentStr, from );
-            break;
-        }
-        case FetionSipEvent::SipInfo: {
-            break;
-        }
-        case FetionSipEvent::SipBENotify: {
-//                 if ( notificationType == QLatin1String( "PresenceV4" ) ) {
-//                     /// NOTIFICATION_TYPE_PRESENCE
-//                 }
-//                 else if ( notificationType == QLatin1String( "Conversation" ) ) {
-//                     /// NOTIFICATION_TYPE_CONVERSATION
-//                 }
-//                 else if ( notificationType == QLatin1String( "contact" ) ) {
-//                     /// NOTIFICATION_TYPE_CONTACT
-//                 }
-//                 else if ( notificationType == QLatin1String( "registration" ) ) {
-//                     /// NOTIFICATION_TYPE_REGISTRATION
-//                 }
-//                 else if ( notificationType == QLatin1String( "SyncUserInfoV4" ) ) {
-//                     /// NOTIFICATION_TYPE_SYNCUSERINFO
-//                 }
-//                 else if ( notificationType == QLatin1String( "PGGroup" ) ) {
-//                     /// NOTIFICATION_TYPE_PGGROUP
-//                 }
-//                 else {
-//                     /// NOTIFICATION_TYPE_UNKNOWN
-//                 }
-    //         QDomDocument doc;
-    //         doc.setContent( list.last() );
-            break;
-        }
-        case FetionSipEvent::SipNotify: {
-            break;
-        }
-        case FetionSipEvent::SipOption: {
-            break;
-        }
         case FetionSipEvent::SipSipc_4_0: {
             if ( sipEvent.typeAddition() == "401 Unauthoried" ) {
                 ///
@@ -417,6 +331,10 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             }
             else if ( sipEvent.typeAddition() == "200 OK" ) {
                 /// sipc register success
+                disconnect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                            this, SLOT(handleSipcRegisterReplyEvent(const FetionSipEvent&)) );
+                connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                         this, SLOT(handleSipEvent(const FetionSipEvent&)) );
                 /// extract buddy lists and buddies
                 QDomDocument doc;
                 doc.setContent( sipEvent.getContent() );
@@ -435,10 +353,121 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
                     gotBuddy( buddyElem.attribute( "i" ) );
                     buddyElem = buddyElem.nextSiblingElement( "b" );
                 }
+
+                /// send contact subscribe
+                FetionSipEvent subscribeEvent( FetionSipEvent::SipSubScribe );
+                subscribeEvent.addHeader( "F", m_from );
+                subscribeEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+                subscribeEvent.addHeader( "Q", "2 SUB" );
+                subscribeEvent.addHeader( "N", "PresenceV4" );
+
+                QString subscribeBody = "<args><subscription self=\"v4default;mail-count\" buddy=\"v4default\" version=\"0\"/></args>";
+                subscribeEvent.setContent( subscribeBody );
+                qWarning() << subscribeEvent.toString();
+                notifier->sendSipEvent( subscribeEvent );
             }
-//                 if ( callid == "5" ) {
-//                     /// contact information return
-//                 }
+            break;
+        }
+        default: {
+            qWarning() << "unexpected sipc register reply." << sipEvent.toString();
+            return;
+        }
+    }
+}
+
+void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
+{
+    qWarning() << sipEvent.toString();
+    switch ( sipEvent.sipType() ) {
+        case FetionSipEvent::SipInvite: {
+            QString from = sipEvent.getFirstValue( "F" );
+            QString auth = sipEvent.getFirstValue( "A" );
+            QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
+            QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
+            QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
+            QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
+            QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
+
+            qWarning() << "Received a conversation invitation";
+            FetionSipNotifier* conversionNotifier = new FetionSipNotifier( this );
+            connect( conversionNotifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                     this, SLOT(handleSipEvent(const FetionSipEvent&)) );
+            conversionNotifier->connectToHost( firstAddress, firstPort.toInt() );
+
+            FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
+            returnEvent.setTypeAddition( "200 OK" );
+            returnEvent.addHeader( "F", from );
+            returnEvent.addHeader( "I", "-61" );
+            returnEvent.addHeader( "Q", "200002 I" );
+
+            conversionNotifier->sendSipEvent( returnEvent );
+
+            FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
+            registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
+            registerEvent.addHeader( "K", "text/html-fragment" );
+            registerEvent.addHeader( "K", "multiparty" );
+            registerEvent.addHeader( "K", "nudge" );
+
+            qWarning() << "Register to conversation server" << firstAddressPort;
+            conversionNotifier->sendSipEvent( registerEvent );
+            break;
+        }
+        case FetionSipEvent::SipMessage: {
+            QString from = sipEvent.getFirstValue( "F" );
+            QString callid = sipEvent.getFirstValue( "I" );
+            QString sequence = sipEvent.getFirstValue( "Q" );
+            QString sendtime = sipEvent.getFirstValue( "D" );
+
+            FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
+            returnEvent.setTypeAddition( "200 OK" );
+            returnEvent.addHeader( "F", from );
+            returnEvent.addHeader( "I", callid );
+            returnEvent.addHeader( "Q", sequence );
+            notifier->sendSipEvent( returnEvent );
+
+            ///char* sid = fetion_sip_get_sid_by_sipuri( from.toAscii().constData() );
+            ///emit messageReceived( QString( sid ), contentStr, from );
+            break;
+        }
+        case FetionSipEvent::SipInfo: {
+            break;
+        }
+        case FetionSipEvent::SipBENotify: {
+            QString notifyType = sipEvent.getFirstValue( "N" );
+            QDomDocument doc;
+            doc.setContent( sipEvent.getContent() );
+            QDomElement docElem = doc.documentElement();
+            if ( notifyType == "PresenceV4" ) {
+                ///
+            }
+            else if ( notifyType == "Conversation" ) {
+                ///
+            }
+            else if ( notifyType == "contact" ) {
+                ///
+            }
+            else if ( notifyType == "registration" ) {
+                ///
+            }
+            else if ( notifyType == "SyncUserInfoV4" ) {
+                ///
+            }
+            else if ( notifyType == "PGGroup" ) {
+                ///
+            }
+            break;
+        }
+        case FetionSipEvent::SipNotify: {
+            break;
+        }
+        case FetionSipEvent::SipOption: {
+            break;
+        }
+        case FetionSipEvent::SipSipc_4_0: {
+            if ( sipEvent.typeAddition() == "401 Unauthoried" ) {
+            }
+            else if ( sipEvent.typeAddition() == "200 OK" ) {
+            }
             break;
         }
         case FetionSipEvent::SipUnknown: {
@@ -448,124 +477,8 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
     }
 }
 
-// AUTH:
-//     pos = sipc_aut_action( me , response );
-//     parse_sipc_auth_response( pos , me, &new_group_count, &new_buddy_count );
-//     free( pos );
-//     if ( me->loginStatus == 421 || me->loginStatus == 420 ) {
-//         generate_pic_code( me );
-//         QImage s;
-//         s.load( QString( me->config->globalPath ) + "/code.gif", "JPEG" );
-//         QString codetext = FetionVCodeDialog::getInputCode( s );
-//         fetion_user_set_verification_code( me , codetext.toAscii() );
-//         goto AUTH;
-//     }
-// 
-//     qWarning() << "auth finished.";
-//     /* update buddy list */
-//     if ( me->groupCount == 0 ) {
-//         qWarning() << "g c";
-//         me->groupCount = local_group_count;
-//     }
-//     else if ( me->groupCount != local_group_count ) {
-//         qWarning() << local_group_count;
-//         Group* g_cur;
-//         Group* g_tmp;
-//         for ( g_cur = me->groupList->next; g_cur != me->groupList; ) {
-//             g_tmp = g_cur;
-//             g_cur = g_cur->next;
-//             if( !g_tmp->dirty ) {
-//                 fetion_group_list_remove( g_tmp );
-//                 free( g_tmp );
-//             }
-//         }
-//     }
-//     /* update buddy count */
-//     if ( me->contactCount == 0 ) {
-//         qWarning() << "c c";
-//         me->contactCount = local_buddy_count;
-//     }
-//     else if ( me->contactCount != local_buddy_count ) {
-//         qWarning() << local_buddy_count;
-//         Contact* c_cur;
-//         Contact* c_tmp;
-//         for ( c_cur = me->contactList->next; c_cur != me->contactList; ) {
-//             c_tmp = c_cur;
-//             c_cur = c_cur->next;
-//             if ( !c_tmp->dirty ) {
-//                 fetion_contact_list_remove( c_tmp );
-//                 free( c_tmp );
-//             }
-//         }
-//     }
-// 
-//     /* send get group request */
-//     pg_group_get_list( me );
-// 
-//     /* if there is not a buddylist name "Ungrouped" or "Strangers", create one */
-//     Group* group = NULL;
-//     if ( fetion_group_list_find_by_id(me->groupList,
-//             BUDDY_LIST_NOT_GROUPED) == NULL &&
-//             fetion_contact_has_ungrouped(me->contactList) ) {
-//         group = fetion_group_new();
-//         group->groupid = BUDDY_LIST_NOT_GROUPED;
-//         strcpy(group->groupname , "Ungrouped");
-//         fetion_group_list_append( me->groupList, group );
-//     }
-//     if ( fetion_group_list_find_by_id(me->groupList,
-//             BUDDY_LIST_STRANGER) == NULL &&
-//             fetion_contact_has_strangers(me->contactList) ) {
-//         group = fetion_group_new();
-//         group->groupid = BUDDY_LIST_STRANGER;
-//         strcpy(group->groupname , "Strangers");
-//         fetion_group_list_prepend( me->groupList, group );
-//     }
-// 
-//     qWarning() << "login finished.";
-// 
-//     /// NOTE: debug cases
-//     Group* grp = me->groupList;
-//     Contact* contact = me->contactList;
-//     char* sid = NULL;
-//     foreach_grouplist(me->groupList , grp){
-//         qWarning() << QString::fromUtf8( grp->groupname ) << grp->groupid;
-//         emit gotGroup( grp->groupid, QString::fromUtf8( grp->groupname ) );
-//     }
-//     foreach_contactlist(me->contactList,contact) {
-//         if ( strlen(contact->sId) == 0 )
-//             sid = fetion_sip_get_sid_by_sipuri(contact->sipuri);
-//         if ( sid ) {
-//             free( sid );
-//             sid = NULL;
-//         }
-//         qWarning() << "sId" << contact->mobileno << contact->sId
-//         << QString::fromUtf8( contact->nickname ) << contact->state;
-//         emit gotContact( QString::fromLatin1( contact->sId ), QString::fromUtf8( contact->nickname ), contact->groupid );
-//     }
-// 
-// 
-//     /// if not offline login
-//     fetion_contact_subscribe_only( me );
-// 
-//     /// TODO: create listening thread here !!!
-//     notifier = new FetionSipNotifier( /*me->sip, */me, this );
-//     QObject::connect( notifier, SIGNAL(newThreadEntered(FetionSip*,User*)),
-//                       this, SLOT(slotNewThreadEntered(FetionSip*,User*)) );
-//     QObject::connect( notifier, SIGNAL(messageReceived(const QString&,const QString&,const QString&)),
-//                       this, SLOT(slotMessageReceived(const QString&,const QString&,const QString&)) );
-//     QObject::connect( notifier, SIGNAL(presenceChanged(const QString&,StateType)),
-//                       this, SLOT(slotPresenceChanged(const QString&,StateType)) );
-// //     notifier->start();
-// 
-// }
-
 void FetionSession::logout()
 {
-}
-
-bool FetionSession::isLoggedIn() const
-{
-    return true;
 }
 
 QString FetionSession::accountId() const
@@ -642,69 +555,3 @@ void FetionSession::sendMobilePhoneMessage( const QString& sId, const QString& m
 //     }
 }
 
-// bool FetionSession::isConnected() const
-// {
-//     return true;
-// }
-
-// void FetionSession::disconnect()
-// {
-//     if ( notifier ) {
-//         notifier->exit();
-//         delete notifier;
-//         notifier = 0;
-//     }
-// }
-
-// void FetionSession::setStatus( const Kopete::OnlineStatus& status )
-// {
-// }
-
-// void FetionSession::slotMessageReceived( const QString& sId, const QString& msgContent, const QString& qsipuri )
-// {
-//     emit gotMessage( sId, msgContent );
-// }
-
-// void FetionSession::slotNewThreadEntered( FetionSip* sip, User* user )
-// {
-//     FetionSipNotifier* thread = new FetionSipNotifier( /*sip, */user, this );
-//     QObject::connect( thread, SIGNAL(newThreadEntered(FetionSipNotifier*)),
-//                       this, SLOT(slotNewThreadEntered(FetionSipNotifier*)) );
-//     QObject::connect( thread, SIGNAL(messageReceived(const QString&,const QString&,const QString&)),
-//                       this, SLOT(slotMessageReceived(const QString&,const QString&,const QString&)) );
-//     QObject::connect( thread, SIGNAL(presenceChanged(const QString&,StateType)),
-//                       this, SLOT(slotPresenceChanged(const QString&,StateType)) );
-// //     thread->start();
-// }
-
-// void FetionSession::slotPresenceChanged( const QString& sId, StateType state )
-// {
-//     Kopete::OnlineStatus status;
-//     switch ( state ) {
-//         case P_ONLINE:
-//             status = Kopete::OnlineStatus::Online;
-//             break;
-//         case P_RIGHTBACK:
-//             status = Kopete::OnlineStatus::Away;
-//             break;
-//         case P_AWAY:
-//             status = Kopete::OnlineStatus::Away;
-//             break;
-//         case P_BUSY:
-//             status = Kopete::OnlineStatus::Busy;
-//             break;
-//         case P_OUTFORLUNCH:
-//         case P_ONTHEPHONE:
-//         case P_MEETING:
-//         case P_DONOTDISTURB:
-//         case P_HIDDEN:
-//             status = Kopete::OnlineStatus::Away;
-//             break;
-//         case P_OFFLINE:
-//             status = Kopete::OnlineStatus::Offline;
-//             break;
-//         default:
-//             break;
-//     }
-//     emit contactStatusChanged( sId, status );
-// }
