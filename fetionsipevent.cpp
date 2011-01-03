@@ -12,7 +12,7 @@ FetionSipEvent::FetionSipEvent( SipType sipType )
 
 FetionSipEvent::FetionSipEvent( const QString& typeStr, const QString& headerStr )
 {
-    qWarning() << "construct sip event" << typeStr << headerStr;
+//     qWarning() << "construct sip event" << typeStr << headerStr;
     m_sipType = FetionSipEvent::stringToSipType( typeStr.section( QLatin1Char( ' ' ), 0, 0, QString::SectionSkipEmpty ) );
     m_typeAddition = typeStr.section( QLatin1Char( ' ' ), 1, -1, QString::SectionSkipEmpty );
 

@@ -89,6 +89,17 @@ void FetionSipNotifier::slotReadyRead()
                 emit sipEventReceived( newEvent );
                 break;
             }
+            case FetionSipEvent::SipBENotify: {
+                QString sid = newEvent.typeAddition().section( ' ', 0, 0, QString::SectionSkipEmpty );
+                QString notificationType = newEvent.getFirstValue( "N" );
+                int contentBegin = datastr.indexOf( "<events>", headerEnd );
+                int contentEnd = datastr.indexOf( "</events>", contentBegin ) + 9;/// length of </events>
+                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
+                newEvent.setContent( contentStr );
+                index = contentEnd;
+                emit sipEventReceived( newEvent );
+                break;
+            }
             case FetionSipEvent::SipNotify: {
                 QString sid = newEvent.typeAddition().section( ' ', 0, 0, QString::SectionSkipEmpty );
                 QString notificationType = newEvent.getFirstValue( "N" );

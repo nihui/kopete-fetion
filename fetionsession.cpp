@@ -4,6 +4,7 @@
 #include "fetionprotocol.h"
 #include "fetionsipevent.h"
 #include "fetionsipnotifier.h"
+#include "fetionutils.h"
 #include "fetionvcodedialog.h"
 
 #include <kopetechatsession.h>
@@ -212,7 +213,7 @@ void FetionSession::ssiAuthFinished()
         QString userstatus = userElem.attribute( "user-status" );
         m_userId = userElem.attribute( "user-id" );
 
-        QString sId = sipuri.section( ':', 1, -1, QString::SectionSkipEmpty ).section( '@', 0, 0, QString::SectionSkipEmpty );
+        QString sId = FetionUtils::SipUriToSid( sipuri );
         m_from = sId;
 
         /// connect to sipc server
@@ -264,57 +265,50 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 //     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipInvite: {
-//                 QString from = newEvent.getFirstValue( "F" );
-//                 QString auth = newEvent.getFirstValue( "A" );
-//                 QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
-//                 QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
-//                 QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
-//                 QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
-//                 QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
+            QString from = sipEvent.getFirstValue( "F" );
+            QString auth = sipEvent.getFirstValue( "A" );
+            QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
+            QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
+            QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
+            QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
+            QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
 
-//                 FetionSipNotifier conversionNotifier;
-//                 qWarning() << "Received a conversation invitation";
-//
-//                 conversionNotifier.connectToHost( firstAddress, firstPort.toInt() );
-//
-//                 FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0, FetionSipEvent::EventUnknown );
-//                 returnEvent.setTypeAddition( "200 OK" );
-//                 returnEvent.addHeader( "F", from );
-//                 returnEvent.addHeader( "I", "-61" );
-//                 returnEvent.addHeader( "Q", "200002 I" );
-//
-//                 conversionNotifier.sendSipEvent( returnEvent );
-//
-//                 FetionSipEvent registerEvent( FetionSipEvent::SipRegister, FetionSipEvent::EventUnknown );
-//                 registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
-//                 registerEvent.addHeader( "K", "text/html-fragment" );
-//                 registerEvent.addHeader( "K", "multiparty" );
-//                 registerEvent.addHeader( "K", "nudge" );
-//
-//                 qWarning() << "Register to conversation server" << firstAddressPort;
-//                 conversionNotifier.sendSipEvent( registerEvent );
+            qWarning() << "Received a conversation invitation";
+            FetionSipNotifier* conversionNotifier = new FetionSipNotifier( this );
+            connect( conversionNotifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                     this, SLOT(handleSipEvent(const FetionSipEvent&)) );
+            conversionNotifier->connectToHost( firstAddress, firstPort.toInt() );
 
-            ///memset( buf, '\0', sizeof(buf)*sizeof(char) );
-            ///int port = tcp_connection_recv( conn , buf , sizeof(buf)*sizeof(char) );
+            FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
+            returnEvent.setTypeAddition( "200 OK" );
+            returnEvent.addHeader( "F", from );
+            returnEvent.addHeader( "I", "-61" );
+            returnEvent.addHeader( "Q", "200002 I" );
 
-            ///memset( conversionSip->sipuri, 0, sizeof(conversionSip->sipuri)*sizeof(char) );
-            ///strcpy( conversionSip->sipuri, from.toAscii().constData() );
+            conversionNotifier->sendSipEvent( returnEvent );
 
-//                 emit newThreadEntered( conversionSip, user );
+            FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
+            registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
+            registerEvent.addHeader( "K", "text/html-fragment" );
+            registerEvent.addHeader( "K", "multiparty" );
+            registerEvent.addHeader( "K", "nudge" );
+
+            qWarning() << "Register to conversation server" << firstAddressPort;
+            conversionNotifier->sendSipEvent( registerEvent );
             break;
         }
         case FetionSipEvent::SipMessage: {
-//                 QString from = newEvent.getFirstValue( "F" );
-//                 QString callid = newEvent.getFirstValue( "I" );
-//                 QString sequence = newEvent.getFirstValue( "Q" );
-//                 QString sendtime = newEvent.getFirstValue( "D" );
-//
-//                 FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0, FetionSipEvent::EventUnknown );
-//                 returnEvent.setTypeAddition( "200 OK" );
-//                 returnEvent.addHeader( "F", from );
-//                 returnEvent.addHeader( "I", callid );
-//                 returnEvent.addHeader( "Q", sequence );
-//                 sendSipEvent( returnEvent );
+            QString from = sipEvent.getFirstValue( "F" );
+            QString callid = sipEvent.getFirstValue( "I" );
+            QString sequence = sipEvent.getFirstValue( "Q" );
+            QString sendtime = sipEvent.getFirstValue( "D" );
+
+            FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
+            returnEvent.setTypeAddition( "200 OK" );
+            returnEvent.addHeader( "F", from );
+            returnEvent.addHeader( "I", callid );
+            returnEvent.addHeader( "Q", sequence );
+            notifier->sendSipEvent( returnEvent );
 
             ///char* sid = fetion_sip_get_sid_by_sipuri( from.toAscii().constData() );
             ///emit messageReceived( QString( sid ), contentStr, from );
@@ -323,7 +317,7 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
         case FetionSipEvent::SipInfo: {
             break;
         }
-        case FetionSipEvent::SipNotify: {
+        case FetionSipEvent::SipBENotify: {
 //                 if ( notificationType == QLatin1String( "PresenceV4" ) ) {
 //                     /// NOTIFICATION_TYPE_PRESENCE
 //                 }
@@ -347,6 +341,9 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 //                 }
     //         QDomDocument doc;
     //         doc.setContent( list.last() );
+            break;
+        }
+        case FetionSipEvent::SipNotify: {
             break;
         }
         case FetionSipEvent::SipOption: {
