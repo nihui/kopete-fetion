@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QQueue>
 #include <QHash>
+#include <QTimer>
 
 class FetionBuddyInfo {
     public:
@@ -16,6 +17,17 @@ class FetionBuddyInfo {
         QString nick;
         QString smsg;
 };
+
+#define P_OFFLINE       -1
+#define P_HIDDEN        0
+#define P_AWAY          100
+#define P_ONTHEPHONE    150
+#define P_RIGHTBACK     300
+#define P_ONLINE        400
+#define P_OUTFORLAUNCH  500
+#define P_BUSY          600
+#define P_DONOTDISTURB  800
+#define P_MEETING       850
 
 class FetionSipEvent;
 class FetionSipNotifier;
@@ -31,7 +43,7 @@ class FetionSession : public QObject
         void logout();
         QString accountId() const;
         void setVisibility( bool isVisible );
-        void setStatusMessage( const QString& status );
+        void setStatusMessage( const QString& statusMessage );
         void sendClientMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessageToMyself( const QString& message );
@@ -42,6 +54,8 @@ class FetionSession : public QObject
         void getCodePicFinished();
         void handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent );
         void handleSipEvent( const FetionSipEvent& sipEvent );
+
+        void sendKeepAlive();
 
     Q_SIGNALS:
         void loginSuccessed();
@@ -74,6 +88,8 @@ class FetionSession : public QObject
         QString m_sipUri;
         QString m_userId;
         QString m_from;
+
+        QTimer* m_hearter;
 
         QHash<int, QString> m_buddyListIdNames;
         QHash<QString, QString> m_buddyIdSipUri;

@@ -73,6 +73,10 @@ FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 {
     notifier = 0;
     manager = new QNetworkAccessManager( this );
+    /// one minute timer for keep alive heart beep
+    m_hearter = new QTimer( this );
+    m_hearter->setInterval( 60 * 1000 );
+    connect( m_hearter, SIGNAL(timeout()), this, SLOT(sendKeepAlive()) );
 }
 
 FetionSession::~FetionSession()
@@ -368,8 +372,8 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 qWarning() << subscribeEvent.toString();
                 notifier->sendSipEvent( subscribeEvent );
 
-                /// NOTE WARNING FIXME debug...
-                ///sendMobilePhoneMessageToMyself( "This is the first message from kopete-fetion plugin!!! --- nihui" );
+                /// start sending keep alive to server every minute
+                m_hearter->start();
             }
             break;
         }
@@ -496,8 +500,25 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
     }
 }
 
+void FetionSession::sendKeepAlive()
+{
+    FetionSipEvent sendEvent( FetionSipEvent::SipRegister );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 R" );
+    sendEvent.addHeader( "T", m_sipUri );
+    sendEvent.addHeader( "N", "KeepAlive" );
+
+    QString registerBody = "<args><credentials domains=\"fetion.com.cn\" /></args>";
+    sendEvent.addHeader( "L", QString::number( registerBody.size() ) );
+    sendEvent.setContent( registerBody );
+
+    notifier->sendSipEvent( sendEvent );
+}
+
 void FetionSession::logout()
 {
+    m_hearter->stop();
 }
 
 QString FetionSession::accountId() const
@@ -509,8 +530,25 @@ void FetionSession::setVisibility( bool isVisible )
 {
 }
 
-void FetionSession::setStatusMessage( const QString& status )
+void FetionSession::setStatusMessage( const QString& statusMessage )
 {
+    FetionSipEvent sendEvent( FetionSipEvent::SipService );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 S" );
+    sendEvent.addHeader( "T", m_sipUri );
+    sendEvent.addHeader( "N", "SetUserInfoV4" );
+
+    QString serviceBody;
+    serviceBody = "<args><userinfo>"
+                  "<personal impresa=\"%1\" version=\"%2\" />"
+                  "<custom-config type=\"PC\" version=\"%3\" />"
+                  "</userinfo></args>";
+    serviceBody = serviceBody.arg( statusMessage ).arg("0").arg("0");///FIXME
+    sendEvent.addHeader( "L", QString::number( serviceBody.size() ) );
+    sendEvent.setContent( serviceBody );
+
+    notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::sendClientMessage( const QString& id, const QString& message )

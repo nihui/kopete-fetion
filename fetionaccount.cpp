@@ -78,7 +78,7 @@ void FetionAccount::setOnlineStatus( const Kopete::OnlineStatus& status,
 
 void FetionAccount::setStatusMessage( const Kopete::StatusMessage& statusMessage )
 {
-    /// TODO: personal signature
+    m_session->setStatusMessage( statusMessage.message() );
 }
 
 void FetionAccount::slotSentMessage( const QString& id, const QString& msgContent )
