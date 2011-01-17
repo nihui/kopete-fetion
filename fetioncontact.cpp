@@ -7,6 +7,8 @@
 #include <kopeteaccount.h>
 #include <kopetechatsessionmanager.h>
 
+#include <QDebug>
+
 FetionContact::FetionContact( Kopete::Account* account, const QString &id, Kopete::MetaContact* parent )
 : Kopete::Contact( account, id, parent ),
 m_manager(0L)
@@ -39,6 +41,7 @@ Kopete::ChatSession* FetionContact::manager( Kopete::Contact::CanCreateFlags can
         connect( m_manager, SIGNAL(messageSent(Kopete::Message&,Kopete::ChatSession*)),
                  this, SLOT(slotMessageSent(Kopete::Message&,Kopete::ChatSession*)) );
     }
+//     qWarning() << m_manager;
     return m_manager;
 }
 

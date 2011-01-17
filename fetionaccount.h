@@ -4,11 +4,10 @@
 #include <kopetemessage.h>
 #include <kopetepasswordedaccount.h>
 
-// #include <openfetion.h>
-
 class KActionMenu;
 class FetionProtocol;
 class FetionSession;
+class FetionBuddyInfo;
 
 class FetionAccount : public Kopete::PasswordedAccount
 {
@@ -24,17 +23,18 @@ class FetionAccount : public Kopete::PasswordedAccount
                                       const OnlineStatusOptions& options = None );
         virtual void setStatusMessage( const Kopete::StatusMessage& statusMessage );
     public Q_SLOTS:
-        void slotSentMessage( const QString& sId, const QString& msgContent );
+        void slotSentMessage( const QString& id, const QString& msgContent );
     protected:
         virtual bool createContact( const QString& contactId, Kopete::MetaContact* parentContact );
     private Q_SLOTS:
-        void slotGotContact( const QString& contactId, const QString& contactName, int groupId );
-        void slotGotGroup( int groupId, const QString& groupName );
-        void slotGotMessage( const QString& sId, const QString& msgContent );
+        void slotGotBuddy( const QString& id, const QString& buddyListName );
+        void slotGotBuddyList( const QString& buddyListName );
+        void slotBuddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
+        void slotGotMessage( const QString& id, const QString& message );
+
         void slotContactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status );
     private:
         FetionSession* m_session;
-        QHash<int, Kopete::Group*> groupHash;
 };
 
 #endif // FETIONACCOUNT_H

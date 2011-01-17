@@ -6,6 +6,16 @@
 #include <kopeteonlinestatus.h>
 #include <QNetworkAccessManager>
 #include <QQueue>
+#include <QHash>
+
+class FetionBuddyInfo {
+    public:
+        QString sid;
+        QString sipuri;
+        QString mobileno;
+        QString nick;
+        QString smsg;
+};
 
 class FetionSipEvent;
 class FetionSipNotifier;
@@ -22,12 +32,11 @@ class FetionSession : public QObject
         QString accountId() const;
         void setVisibility( bool isVisible );
         void setStatusMessage( const QString& status );
-        void sendClientMessage( const QString& sipUri, const QString& message );
-        void sendMobilePhoneMessage( const QString& sipUri, const QString& message );
+        void sendClientMessage( const QString& id, const QString& message );
+        void sendMobilePhoneMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessageToMyself( const QString& message );
 
     private Q_SLOTS:
-//         void replyFinished( QNetworkReply* reply );
         void getSystemConfigFinished();
         void ssiAuthFinished();
         void getCodePicFinished();
@@ -37,13 +46,12 @@ class FetionSession : public QObject
     Q_SIGNALS:
         void loginSuccessed();
         void gotBuddyList( const QString& buddyListName );
-        void gotBuddy( const QString& buddyId );
+        void gotBuddy( const QString& id, const QString& buddyListName );
+        void buddyStatusUpdated( const QString& id, const QString& statusId );
+        void buddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
+        void gotMessage( const QString& id, const QString& message );
 
         void contactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status );
-        void gotContact( const QString& contactId, const QString& contactName, int groupId );
-        void gotGroup( int groupId, const QString& groupName );
-        void gotMessage( const QString& sId, const QString& msgContent );
-        void statusChanged( const Kopete::OnlineStatus& status );
     private:
         bool m_isConnected;
         QString m_accountId;
@@ -66,6 +74,9 @@ class FetionSession : public QObject
         QString m_sipUri;
         QString m_userId;
         QString m_from;
+
+        QHash<int, QString> m_buddyListIdNames;
+        QHash<QString, QString> m_buddyIdSipUri;
 };
 
 #endif // FETIONSESSION_H

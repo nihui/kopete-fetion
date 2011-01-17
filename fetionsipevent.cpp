@@ -99,13 +99,8 @@ QString FetionSipEvent::toString() const
         ++it;
     }
 
-    if ( m_content.isEmpty() ) {
-        str += "\r\n";
-    }
-    else {
-        str += "L: " + QString::number( m_content.size() ) + "\r\n\r\n";
-        str += m_content;
-    }
+    str += "\r\n";
+    str += m_content;
 
     return str;
 }

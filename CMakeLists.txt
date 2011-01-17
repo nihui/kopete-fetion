@@ -40,7 +40,7 @@ set(kopete_fetion_PART_SRCS
     fetionaccount.cpp
     fetionaddcontactpage.cpp
     fetioncontact.cpp
-    fetionchatsession.cpp
+#     fetionchatsession.cpp
     fetioneditaccountwidget.cpp
     fetionprotocol.cpp
     fetionsession.cpp

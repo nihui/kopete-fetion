@@ -5,8 +5,6 @@
 
 #include "fetionsipevent.h"
 
-/** ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-
 FetionSipNotifier::FetionSipNotifier( QObject* parent )
 : QObject(parent)
 {
@@ -26,116 +24,58 @@ void FetionSipNotifier::connectToHost( const QString& hostAddress, int port )
 
 void FetionSipNotifier::sendSipEvent( const FetionSipEvent& sipEvent )
 {
-    m_socket.write( sipEvent.toString().toAscii() );
+    m_socket.write( sipEvent.toString().toUtf8() );
 }
 
 void FetionSipNotifier::slotReadyRead()
 {
-    /// storing data received from last read
-    static QString pendingBuffer;
+    // storing data received from last read
+    static QByteArray pendingBuffer;
 
     QByteArray data = m_socket.readAll();
     if ( data.isEmpty() )
         return;
 
-    QString datastr = pendingBuffer + QString::fromUtf8( data );
-//     qWarning() << datastr;
+    QByteArray datastr = pendingBuffer + data;
+    qWarning() << datastr;
 
     int index = 0;
     int len = datastr.size();
     int headerBegin;
     int headerEnd;
+    int siptypeStrEnd;
+    int sipheaderStrBegin;
+    int contentBegin;
 
     while ( index < len ) {
         headerBegin = index;
-        headerEnd = datastr.indexOf( "\r\n\r\n", headerBegin ) + 4;/// length of \r\n\r\n
-        QString headerStr = datastr.mid( headerBegin, headerEnd - headerBegin );
-
-        QString siptypeStr = headerStr.section( "\r\n", 0, 0, QString::SectionSkipEmpty );
-        QString sipheaderStr = headerStr.section( "\r\n", 1, -1, QString::SectionSkipEmpty );
-        FetionSipEvent newEvent( siptypeStr, sipheaderStr );
+        headerEnd = datastr.indexOf( "\r\n\r\n", headerBegin );
+        siptypeStrEnd = datastr.indexOf( "\r\n", headerBegin );
+        sipheaderStrBegin = siptypeStrEnd + 2;// length of \r\n
+        QByteArray siptypeStr = datastr.mid( headerBegin, siptypeStrEnd - headerBegin );
+        QByteArray sipheaderStr = datastr.mid( sipheaderStrBegin, headerEnd - sipheaderStrBegin );
+        FetionSipEvent newEvent( QString::fromUtf8( siptypeStr ), QString::fromUtf8( sipheaderStr ) );
 
         QString contentLengthStr = newEvent.getFirstValue( "L" );
-        if ( !contentLengthStr.isEmpty() ) {
-            int contentLength = contentLengthStr.toInt();
-            if ( len - headerEnd < contentLength ) {
-                /// data has been split into more than one read, pending it
-                pendingBuffer = datastr.right( len - headerBegin );
-                return;
-            }
-            pendingBuffer.clear();
+        if ( contentLengthStr.isEmpty() ) {
+            // content-less events
+            index = headerEnd + 4;// length of \r\n\r\n
+            emit sipEventReceived( newEvent );
+            continue;
         }
 
-        switch ( newEvent.sipType() ) {
-            case FetionSipEvent::SipInvite: {
-                int contentBegin = datastr.indexOf( "s=", headerEnd );
-                int contentEnd = datastr.size();/// FIXME: i'm just lazy here...  ;)  --- nihui
-                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
-                newEvent.setContent( contentStr );
-                index = contentEnd;
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipMessage: {
-                int contentBegin = datastr.indexOf( "<Font", headerEnd );
-                int contentEnd = datastr.indexOf( "</Font>", contentBegin ) + 7;/// length of </Font>
-                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
-                newEvent.setContent( contentStr );
-                index = contentEnd;
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipInfo: {
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipBENotify: {
-                QString sid = newEvent.typeAddition().section( ' ', 0, 0, QString::SectionSkipEmpty );
-                QString notificationType = newEvent.getFirstValue( "N" );
-                int contentBegin = datastr.indexOf( "<events>", headerEnd );
-                int contentEnd = datastr.indexOf( "</events>", contentBegin ) + 9;/// length of </events>
-                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
-                newEvent.setContent( contentStr );
-                index = contentEnd;
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipNotify: {
-                QString sid = newEvent.typeAddition().section( ' ', 0, 0, QString::SectionSkipEmpty );
-                QString notificationType = newEvent.getFirstValue( "N" );
-                int contentBegin = datastr.indexOf( "<events>", headerEnd );
-                int contentEnd = datastr.indexOf( "</events>", contentBegin ) + 9;/// length of </events>
-                QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
-                newEvent.setContent( contentStr );
-                index = contentEnd;
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipOption: {
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipSipc_4_0: {
-                QString callid = newEvent.getFirstValue( "I" );
-                if ( !newEvent.getFirstValue( "L" ).isEmpty() ) {
-                    int contentBegin = datastr.indexOf( "<results>", headerEnd );
-                    int contentEnd = datastr.indexOf( "</results>", contentBegin ) + 10;/// length of </results>
-                    QString contentStr = datastr.mid( contentBegin, contentEnd - contentBegin );
-                    newEvent.setContent( contentStr );
-                    index = contentEnd;
-                }
-                else {
-                    index = headerEnd;
-                }
-                emit sipEventReceived( newEvent );
-                break;
-            }
-            case FetionSipEvent::SipUnknown: {
-                qWarning() << "unknown sip message" << datastr;
-                return;
-            }
+        int contentLength = contentLengthStr.toInt();
+        if ( len - headerEnd < contentLength ) {
+            // data has been split into more than one read, pending it
+            pendingBuffer = datastr.right( len - headerBegin );
+            return;
         }
+        pendingBuffer.clear();
 
-        qWarning() << "#############################";
+        contentBegin = headerEnd + 4;// length of \r\n\r\n
+        QByteArray contentStr = datastr.mid( contentBegin, contentLength );
+        newEvent.setContent( QString::fromUtf8( contentStr ) );
+        index = contentBegin + contentLength;
+        emit sipEventReceived( newEvent );
     }
 }

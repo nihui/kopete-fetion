@@ -229,7 +229,7 @@ void FetionSession::ssiAuthFinished()
         registerEvent.addHeader( "Q", "2 R" );
         registerEvent.addHeader( "CN", m_nouce );
         registerEvent.addHeader( "CL", "type=\"pc\" ,version=\""PROTO_VERSION"\"" );
-        qWarning() << registerEvent.toString();
+
         notifier->sendSipEvent( registerEvent );
     }
 }
@@ -239,7 +239,6 @@ void FetionSession::getCodePicFinished()
     QNetworkReply* reply = (QNetworkReply*)sender();
     QString data = QString::fromUtf8( reply->readAll() );
     reply->deleteLater();
-    qWarning() << data;
 
     QDomDocument doc;
     doc.setContent( data );
@@ -318,9 +317,8 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 authContent += "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>";
                 authContent += "<credentials domains=\"fetion.com.cn\"/>";
                 authContent += "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
+                sipcAuthActionEvent.addHeader( "L", QString::number( authContent.size() ) );
                 sipcAuthActionEvent.setContent( authContent );
-
-                qWarning() << sipcAuthActionEvent.toString();
 
                 notifier->sendSipEvent( sipcAuthActionEvent );
             }
@@ -334,18 +332,26 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 QDomDocument doc;
                 doc.setContent( sipEvent.getContent() );
                 QDomElement docElem = doc.documentElement();
-                QDomElement userinfoElem = doc.firstChildElement( "user-info" );
+                QDomElement resultsElem = doc.firstChildElement( "results" );
+                QDomElement userinfoElem = resultsElem.firstChildElement( "user-info" );
                 QDomElement contactlistElem = userinfoElem.firstChildElement( "contact-list" );
                 QDomElement buddylistsElem = contactlistElem.firstChildElement( "buddy-lists" );
                 QDomElement buddylistElem = buddylistsElem.firstChildElement( "buddy-list" );
                 while ( !buddylistElem.isNull() ) {
-                    gotBuddyList( buddylistElem.attribute( "name" ) );
+                    int buddyListId = buddylistElem.attribute( "id" ).toInt();
+                    QString buddyListName = buddylistElem.attribute( "name" );
+                    m_buddyListIdNames[ buddyListId ] = buddyListName;
+                    emit gotBuddyList( buddyListName );
                     buddylistElem = buddylistElem.nextSiblingElement( "buddy-list" );
                 }
                 QDomElement buddiesElem = contactlistElem.firstChildElement( "buddies" );
-                QDomElement buddyElem = contactlistElem.firstChildElement( "b" );
+                QDomElement buddyElem = buddiesElem.firstChildElement( "b" );
                 while ( !buddyElem.isNull() ) {
-                    gotBuddy( buddyElem.attribute( "i" ) );
+                    QString buddyId = buddyElem.attribute( "i" );
+                    QString sipuri = buddyElem.attribute( "u" );
+                    QString list = buddyElem.attribute( "l" );
+                    m_buddyIdSipUri[ buddyId ] = sipuri;
+                    emit gotBuddy( buddyId, m_buddyListIdNames.value( list.toInt() ) );
                     buddyElem = buddyElem.nextSiblingElement( "b" );
                 }
 
@@ -357,12 +363,13 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 subscribeEvent.addHeader( "N", "PresenceV4" );
 
                 QString subscribeBody = "<args><subscription self=\"v4default;mail-count\" buddy=\"v4default\" version=\"0\"/></args>";
+                subscribeEvent.addHeader( "L", QString::number( subscribeBody.size() ) );
                 subscribeEvent.setContent( subscribeBody );
                 qWarning() << subscribeEvent.toString();
                 notifier->sendSipEvent( subscribeEvent );
 
                 /// NOTE WARNING FIXME debug...
-                sendMobilePhoneMessageToMyself( "This is the first message from kopete-fetion plugin!!! --- nihui" );
+                ///sendMobilePhoneMessageToMyself( "This is the first message from kopete-fetion plugin!!! --- nihui" );
             }
             break;
         }
@@ -375,7 +382,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
 
 void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
-    qWarning() << sipEvent.toString();
+//     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipInvite: {
             QString from = sipEvent.getFirstValue( "F" );
@@ -416,6 +423,8 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             QString sequence = sipEvent.getFirstValue( "Q" );
             QString sendtime = sipEvent.getFirstValue( "D" );
 
+            emit gotMessage( m_buddyIdSipUri.key( from ), sipEvent.getContent() );
+
             FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
             returnEvent.setTypeAddition( "200 OK" );
             returnEvent.addHeader( "F", from );
@@ -429,11 +438,26 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
         }
         case FetionSipEvent::SipBENotify: {
             QString notifyType = sipEvent.getFirstValue( "N" );
-            QDomDocument doc;
-            doc.setContent( sipEvent.getContent() );
-            QDomElement docElem = doc.documentElement();
             if ( notifyType == "PresenceV4" ) {
                 ///
+                QDomDocument doc;
+                doc.setContent( sipEvent.getContent() );
+                QDomElement docElem = doc.documentElement();
+                QDomElement eventElem = docElem.firstChildElement( "event" );
+                QDomElement contactsElem = eventElem.firstChildElement( "contacts" );
+                QDomElement contactElem = contactsElem.firstChildElement( "c" );
+                while ( !contactElem.isNull() ) {
+                    QString id = contactElem.attribute( "id" );
+                    QDomElement pElem = contactElem.firstChildElement( "p" );
+                    FetionBuddyInfo buddyInfo;
+                    buddyInfo.sid = pElem.attribute( "sid" );
+                    buddyInfo.sipuri = pElem.attribute( "su" );
+                    buddyInfo.mobileno = pElem.attribute( "m" );
+                    buddyInfo.nick = pElem.attribute( "n" );
+                    buddyInfo.smsg = pElem.attribute( "i" );
+                    emit buddyInfoUpdated( id, buddyInfo );
+                    contactElem = contactElem.nextSiblingElement( "c" );
+                }
             }
             else if ( notifyType == "Conversation" ) {
                 ///
@@ -489,33 +513,47 @@ void FetionSession::setStatusMessage( const QString& status )
 {
 }
 
-void FetionSession::sendClientMessage( const QString& sipUri, const QString& message )
+void FetionSession::sendClientMessage( const QString& id, const QString& message )
 {
+    QString to = m_buddyIdSipUri.value( id );
+    if ( to.isEmpty() ) {
+        qWarning() << "no such sipuri for contact id" << id;
+        return;
+    }
+
     FetionSipEvent sendEvent( FetionSipEvent::SipMessage );
     sendEvent.addHeader( "F", m_from );
     sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
     sendEvent.addHeader( "Q", "2 M" );
-    sendEvent.addHeader( "T", sipUri );
+    sendEvent.addHeader( "T", to );
     sendEvent.addHeader( "C", "text/plain" );
     sendEvent.addHeader( "K", "SaveHistory" );
     sendEvent.addHeader( "N", "CatMsg" );
+    sendEvent.addHeader( "L", QString::number( message.size() ) );
 
     sendEvent.setContent( message );
 
     notifier->sendSipEvent( sendEvent );
 }
 
-void FetionSession::sendMobilePhoneMessage( const QString& sipUri, const QString& message )
+void FetionSession::sendMobilePhoneMessage( const QString& id, const QString& message )
 {
+    QString to = m_buddyIdSipUri.value( id );
+    if ( to.isEmpty() ) {
+        qWarning() << "no such sipuri for contact id" << id;
+        return;
+    }
+
     FetionSipEvent sendEvent( FetionSipEvent::SipMessage );
     sendEvent.addHeader( "F", m_from );
     sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
     sendEvent.addHeader( "Q", "2 M" );
-    sendEvent.addHeader( "T", sipUri );
-    QString Astr( "Verify algorithm=\"picc\",chid=\"%1\",response=\"%2\"" );
-    Astr = Astr.arg( picid ).arg( vcode );
-    sendEvent.addHeader( "A", Astr );
+    sendEvent.addHeader( "T", to );
+//     QString Astr( "Verify algorithm=\"picc\",chid=\"%1\",response=\"%2\"" );
+//     Astr = Astr.arg( picid ).arg( vcode );
+//     sendEvent.addHeader( "A", Astr );
     sendEvent.addHeader( "N", "SendCatSMS" );
+    sendEvent.addHeader( "L", QString::number( message.size() ) );
 
     sendEvent.setContent( message );
 
@@ -530,6 +568,7 @@ void FetionSession::sendMobilePhoneMessageToMyself( const QString& message )
     sendEvent.addHeader( "Q", "2 M" );
     sendEvent.addHeader( "T", m_sipUri );
     sendEvent.addHeader( "N", "SendCatSMS" );
+    sendEvent.addHeader( "L", QString::number( message.size() ) );
 
     sendEvent.setContent( message );
 

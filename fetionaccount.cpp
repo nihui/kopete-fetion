@@ -9,8 +9,8 @@
 #include <kopetechatsession.h>
 #include <kopetecontactlist.h>
 #include <kopetegroup.h>
-
 #include <kopetemetacontact.h>
+#include <kopetestatusmessage.h>
 
 #include <QDialog>
 #include <QVBoxLayout>
@@ -35,10 +35,13 @@ FetionAccount::~FetionAccount()
 
 void FetionAccount::connectWithPassword( const QString& password )
 {
-    QObject::connect( m_session, SIGNAL(gotContact(const QString&,const QString&,int)),
-                      this, SLOT(slotGotContact(const QString&,const QString&,int)) );
-    QObject::connect( m_session, SIGNAL(gotGroup(int,const QString&)),
-                      this, SLOT(slotGotGroup(int,const QString&)) );
+    QObject::connect( m_session, SIGNAL(gotBuddy(const QString&,const QString&)),
+                      this, SLOT(slotGotBuddy(const QString&,const QString&)) );
+    QObject::connect( m_session, SIGNAL(gotBuddyList(const QString&)),
+                      this, SLOT(slotGotBuddyList(const QString&)) );
+    QObject::connect( m_session, SIGNAL(buddyInfoUpdated(const QString&,const FetionBuddyInfo&)),
+                      this, SLOT(slotBuddyInfoUpdated(const QString&,const FetionBuddyInfo&)) );
+
     QObject::connect( m_session, SIGNAL(gotMessage(const QString&,const QString&)),
                       this, SLOT(slotGotMessage(const QString&,const QString&)) );
     QObject::connect( m_session, SIGNAL(contactStatusChanged(const QString&,const Kopete::OnlineStatus&)),
@@ -78,10 +81,10 @@ void FetionAccount::setStatusMessage( const Kopete::StatusMessage& statusMessage
     /// TODO: personal signature
 }
 
-void FetionAccount::slotSentMessage( const QString& sId, const QString& msgContent )
+void FetionAccount::slotSentMessage( const QString& id, const QString& msgContent )
 {
-    qWarning() << "slotSentMessage" << sId << msgContent;
-    m_session->sendClientMessage( sId, msgContent );
+    qWarning() << "slotSentMessage" << id << msgContent;
+    m_session->sendClientMessage( id, msgContent );
 }
 
 bool FetionAccount::createContact( const QString& contactId, Kopete::MetaContact* parentContact )
@@ -93,26 +96,41 @@ bool FetionAccount::createContact( const QString& contactId, Kopete::MetaContact
     return false;
 }
 
-void FetionAccount::slotGotContact( const QString& contactId, const QString& contactName, int groupId )
+void FetionAccount::slotGotBuddy( const QString& id, const QString& buddyListName )
 {
-    Kopete::Contact* contact = contacts().value( contactId );
+    qWarning() << "slotGotBuddy" << id << buddyListName;
+    Kopete::Contact* contact = contacts().value( id );
     if ( !contact ) {
-        Kopete::MetaContact* mc = addContact( contactId, contactName, groupHash[groupId] );
-//         FetionContact* c = new FetionContact( this, contact->sId, mc );
-//         c->setNickName( QString::fromUtf8( contact->nickname ) );
-//         c->setPhoto( QString::fromUtf8( config->iconPath ) + '/' + contact->sId + ".jpg" );
-//         c->setOnlineStatus( FetionProtocol::protocol()->fetionOnline );
+        if ( buddyListName.isEmpty() )
+            Kopete::MetaContact* mc = addContact( id, id );
+        else {
+            Kopete::Group* group = Kopete::ContactList::self()->findGroup( buddyListName );
+            Kopete::MetaContact* mc = addContact( id, id, group );
+        }
     }
 }
 
-void FetionAccount::slotGotGroup( int groupId, const QString& groupName )
+void FetionAccount::slotGotBuddyList( const QString& buddyListName )
 {
-    Kopete::Group* group = Kopete::ContactList::self()->findGroup( groupName );
+    qWarning() << "slotGotBuddyList" << buddyListName;
+    Kopete::Group* group = Kopete::ContactList::self()->findGroup( buddyListName );
     if ( !group ) {
-        group = new Kopete::Group( groupName );
+        group = new Kopete::Group( buddyListName );
         Kopete::ContactList::self()->addGroup( group );
     }
-    groupHash[groupId] = group;
+}
+
+void FetionAccount::slotBuddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo )
+{
+    qWarning() << "slotBuddyInfoUpdated" << id;
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
+    if ( !contact ) {
+        qWarning() << "unknown contact info update" << id;
+        return;
+    }
+    contact->setNickName( buddyInfo.nick.isEmpty() ? id : buddyInfo.nick );
+    contact->setStatusMessage( buddyInfo.smsg );
+    contact->metaContact()->setDisplayName( contact->nickName() );
 }
 
 void FetionAccount::slotContactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status )
@@ -123,22 +141,19 @@ void FetionAccount::slotContactStatusChanged( const QString& sId, const Kopete::
     }
 }
 
-void FetionAccount::slotGotMessage( const QString& sId, const QString& msgContent )
+void FetionAccount::slotGotMessage( const QString& id, const QString& message )
 {
-    qWarning() << "slotGotMessage";
-
-    Kopete::Contact* contact = contacts().value( sId );
+    Kopete::Contact* contact = contacts().value( id );
     if ( !contact ) {
-        qWarning() << "unknown sender" << sId << msgContent;
+        qWarning() << "unknown sender" << id << message;
         return;
-        //c->setOnlineStatus( status );
     }
 
-    Kopete::Message message = Kopete::Message( contact, myself() );
-    message.setPlainBody( msgContent );
-    message.setDirection( Kopete::Message::Inbound );
-    contact->manager( Kopete::Contact::CanCreate )->appendMessage( message );
+    Kopete::Message m = Kopete::Message( contact, myself() );
+    m.setPlainBody( message );
+    m.setDirection( Kopete::Message::Inbound );
+    contact->manager( Kopete::Contact::CanCreate )->appendMessage( m );
 
-    qWarning() << sId << "say:" << msgContent;
+    qWarning() << id << "say:" << message;
 }
 

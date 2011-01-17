@@ -9,7 +9,7 @@ class FetionContact : public Kopete::Contact
 {
     Q_OBJECT
     public:
-        FetionContact( Kopete::Account* account, const QString &id, Kopete::MetaContact* parent );
+        explicit FetionContact( Kopete::Account* account, const QString& id, Kopete::MetaContact* parent );
         virtual ~FetionContact();
         virtual bool isReachable();
 //         virtual QList<KAction*>* customContextMenuActions();
