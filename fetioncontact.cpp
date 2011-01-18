@@ -1,7 +1,6 @@
 #include "fetioncontact.h"
 
 #include "fetionaccount.h"
-#include "fetionchatsession.h"
 #include "fetionprotocol.h"
 
 #include <kopeteaccount.h>
