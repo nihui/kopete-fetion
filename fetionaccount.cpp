@@ -242,17 +242,12 @@ void FetionAccount::slotBuddyInfoUpdated( const QString& id, const FetionBuddyIn
 
 void FetionAccount::slotGotMessage( const QString& id, const QString& message )
 {
-    Kopete::Contact* contact = contacts().value( id );
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
     if ( !contact ) {
         qWarning() << "unknown sender" << id << message;
         return;
     }
 
-    Kopete::Message m = Kopete::Message( contact, myself() );
-    m.setPlainBody( message );
-    m.setDirection( Kopete::Message::Inbound );
-    contact->manager( Kopete::Contact::CanCreate )->appendMessage( m );
-
-    qWarning() << id << "say:" << message;
+    contact->slotMessageReceived( message );
 }
 

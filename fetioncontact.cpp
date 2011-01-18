@@ -40,8 +40,8 @@ Kopete::ChatSession* FetionContact::manager( Kopete::Contact::CanCreateFlags can
         m_manager = Kopete::ChatSessionManager::self()->create( account()->myself(), chatmembers, protocol() );
         connect( m_manager, SIGNAL(messageSent(Kopete::Message&,Kopete::ChatSession*)),
                  this, SLOT(slotMessageSent(Kopete::Message&,Kopete::ChatSession*)) );
+        connect( m_manager, SIGNAL(destroyed()), this, SLOT(slotChatSessionDestroyed()) );
     }
-//     qWarning() << m_manager;
     return m_manager;
 }
 
@@ -49,6 +49,24 @@ void FetionContact::serialize( QMap<QString, QString>& serializedData,
                                QMap<QString, QString>& addressBookData )
 {
     Kopete::Contact::serialize( serializedData, addressBookData );
+}
+
+void FetionContact::slotUserInfo()
+{
+    /// TODO retrieve contact info
+}
+
+void FetionContact::slotChatSessionDestroyed()
+{
+    m_manager = 0;
+}
+
+void FetionContact::slotMessageReceived( const QString& message )
+{
+    Kopete::Message m = Kopete::Message( this, account()->myself() );
+    m.setPlainBody( message );
+    m.setDirection( Kopete::Message::Inbound );
+    manager( Kopete::Contact::CanCreate )->appendMessage( m );
 }
 
 void FetionContact::slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession )

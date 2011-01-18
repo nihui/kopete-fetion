@@ -16,7 +16,10 @@ class FetionContact : public Kopete::Contact
         virtual Kopete::ChatSession* manager( Kopete::Contact::CanCreateFlags canCreate = Kopete::Contact::CannotCreate );
         virtual void serialize( QMap<QString, QString>& serializedData,
                                 QMap<QString, QString>& addressBookData );
-    private Q_SLOTS:
+    public Q_SLOTS:
+        virtual void slotUserInfo();
+        void slotChatSessionDestroyed();
+        void slotMessageReceived( const QString& message );
         void slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession );
     private:
         Kopete::ChatSession* m_manager;
