@@ -274,11 +274,11 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 QByteArray passwordhash = myhash( m_userId.toAscii(), m_password.toAscii() );
                 QByteArray hidden = nonce.toAscii() + passwordhash + aeskey;
                 const char* publickey = key.toAscii().constData();
-                const unsigned char* fromdata = (const unsigned char*)hidden.constData();
+                const unsigned char* fromdata = reinterpret_cast<const unsigned char*>(hidden.constData());
                 char modulus[256];
                 char exponent[6];
-                memcpy( modulus , publickey , 256 );
-                memcpy( exponent , publickey + 256 , 6 );
+                memcpy( modulus, publickey, 256 );
+                memcpy( exponent, publickey + 256, 6 );
                 BIGNUM* bnn = BN_new();
                 BIGNUM* bne = BN_new();
                 RSA* r = RSA_new();
@@ -309,17 +309,15 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
                 sipcAuthActionEvent.addHeader( "A", ackaStr );
 
-                QString authContent = "<args><device machine-code=\"001676C0E351\"/><caps value=\"1ff\"/><events value=\"7f\"/>";
-                authContent += "<user-info mobile-no=\"";
-                authContent += m_accountId;
-                authContent += "\" user-id=\"";
-                authContent += m_userId;
-                authContent += "\">";
-                authContent += "<personal version=\"\" attributes=\"v4default\"/>";
-                authContent += "<custom-config version=\"\"/>";
-                authContent += "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>";
-                authContent += "<credentials domains=\"fetion.com.cn\"/>";
-                authContent += "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
+                QString authContent = "<args><device machine-code=\"001676C0E351\"/>"
+                                      "<caps value=\"1ff\"/><events value=\"7f\"/>"
+                                      "<user-info mobile-no=\"%1\" user-id=\"%2\">"
+                                      "<personal version=\"\" attributes=\"v4default\"/>"
+                                      "<custom-config version=\"\"/>"
+                                      "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>"
+                                      "<credentials domains=\"fetion.com.cn\"/>"
+                                      "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
+                authContent = authContent.arg( m_accountId ).arg( m_userId );
                 sipcAuthActionEvent.addHeader( "L", QString::number( authContent.toUtf8().size() ) );
                 sipcAuthActionEvent.setContent( authContent );
 
@@ -409,21 +407,23 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
                      this, SLOT(handleSipEvent(const FetionSipEvent&)) );
             conversionNotifier->connectToHost( firstAddress, firstPort.toInt() );
 
+            /// reply to the invitation
             FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
             returnEvent.setTypeAddition( "200 OK" );
             returnEvent.addHeader( "F", from );
             returnEvent.addHeader( "I", "-61" );
             returnEvent.addHeader( "Q", "200002 I" );
+            notifier->sendSipEvent( returnEvent );
 
-            conversionNotifier->sendSipEvent( returnEvent );
-
+            /// register to conversation sip server
             FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
+            registerEvent.addHeader( "F", m_from );
+            registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+            registerEvent.addHeader( "Q", "2 R" );
             registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
             registerEvent.addHeader( "K", "text/html-fragment" );
             registerEvent.addHeader( "K", "multiparty" );
             registerEvent.addHeader( "K", "nudge" );
-
-            qWarning() << "Register to conversation server" << firstAddressPort;
             conversionNotifier->sendSipEvent( registerEvent );
             break;
         }
@@ -435,6 +435,7 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 
             emit gotMessage( m_buddyIdSipUri.key( from ), sipEvent.getContent() );
 
+            /// reply to the message
             FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
             returnEvent.setTypeAddition( "200 OK" );
             returnEvent.addHeader( "F", from );
