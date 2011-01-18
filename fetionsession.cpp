@@ -209,11 +209,6 @@ void FetionSession::ssiAuthFinished()
         return;
     }
     else if ( statusCode == "200" ) {
-        /// login success
-        m_isConnecting = false;
-        m_isConnected = true;
-        qWarning() << "fetion login success   :)";
-        /// emit success signal
         QDomElement userElem = docElem.firstChildElement( "user" );
         m_sipUri = userElem.attribute( "uri" );
         QString mobileno = userElem.attribute( "mobile-no" );
@@ -332,6 +327,13 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
             }
             else if ( sipEvent.typeAddition() == "200 OK" ) {
                 /// sipc register success
+                /// login success
+                m_isConnecting = false;
+                m_isConnected = true;
+                /// emit success signal
+                qWarning() << "fetion login success   :)";
+                emit loginSuccessed();
+
                 disconnect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
                             this, SLOT(handleSipcRegisterReplyEvent(const FetionSipEvent&)) );
                 connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
@@ -541,6 +543,7 @@ void FetionSession::logout()
     notifier->close();
 
     m_isConnected = false;
+    emit logoutSuccessed();
 }
 
 QString FetionSession::accountId() const
@@ -560,6 +563,26 @@ bool FetionSession::isConnected() const
 
 void FetionSession::setVisibility( bool isVisible )
 {
+}
+
+void FetionSession::setStatusId( const QString& statusId )
+{
+    FetionSipEvent sendEvent( FetionSipEvent::SipService );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 S" );
+    sendEvent.addHeader( "T", m_sipUri );
+    sendEvent.addHeader( "N", "SetPresenceV4" );
+
+    QString serviceBody;
+    serviceBody = "<args><presence>"
+                  "<basic value=\"%1\" />"
+                  "</presence></args>";
+    serviceBody = serviceBody.arg( statusId );
+    sendEvent.addHeader( "L", QString::number( serviceBody.size() ) );
+    sendEvent.setContent( serviceBody );
+
+    notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::setStatusMessage( const QString& statusMessage )

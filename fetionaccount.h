@@ -27,6 +27,8 @@ class FetionAccount : public Kopete::PasswordedAccount
     protected:
         virtual bool createContact( const QString& contactId, Kopete::MetaContact* parentContact );
     private Q_SLOTS:
+        void slotLoginSuccessed();
+        void slotLogoutSuccessed();
         void slotGotBuddy( const QString& id, const QString& buddyListName );
         void slotGotBuddyList( const QString& buddyListName );
         void slotBuddyStatusUpdated( const QString& id, const QString& statusId );

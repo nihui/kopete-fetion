@@ -26,6 +26,10 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
     setMyself( new FetionContact( this, accountId, Kopete::ContactList::self()->myself() ) );
     myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOffline );
     m_session = new FetionSession( this );
+    QObject::connect( m_session, SIGNAL(loginSuccessed()),
+                      this, SLOT(slotLoginSuccessed()) );
+    QObject::connect( m_session, SIGNAL(logoutSuccessed()),
+                      this, SLOT(slotLogoutSuccessed()) );
     QObject::connect( m_session, SIGNAL(gotBuddy(const QString&,const QString&)),
                       this, SLOT(slotGotBuddy(const QString&,const QString&)) );
     QObject::connect( m_session, SIGNAL(gotBuddyList(const QString&)),
@@ -50,16 +54,11 @@ void FetionAccount::connectWithPassword( const QString& password )
 
     m_session->setLoginInformation( accountId(), password );
     m_session->login();
-    /// TODO: connecting stuff end
-    myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOnline );
 }
 
 void FetionAccount::disconnect()
 {
-    /// TODO: disconnecting stuff here
-    qWarning() << "FetionAccount::disconnect()";
     m_session->logout();
-    myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOffline );
 }
 
 void FetionAccount::fillActionMenu( KActionMenu* actionMenu )
@@ -72,17 +71,55 @@ void FetionAccount::setOnlineStatus( const Kopete::OnlineStatus& status,
                                      const OnlineStatusOptions& options )
 {
     Kopete::OnlineStatus oldStatus = myself()->onlineStatus();
-    if ( oldStatus == status )
-        return;
 
-    /// TODO: status changing
     if ( !oldStatus.isDefinitelyOnline() && status.isDefinitelyOnline() ) {
         connect();
+        return;
     }
-    else if ( oldStatus.isDefinitelyOnline() && !status.isDefinitelyOnline() ) {
+    if ( oldStatus.isDefinitelyOnline() && !status.isDefinitelyOnline() ) {
         disconnect();
+        return;
     }
-//     m_session->setStatus( status );
+
+    /// change status id
+    QString statusId;
+    switch ( status.internalStatus() ) {
+        case 1:/* offline */
+            statusId = "-1";
+            break;
+        case 2:/* hidden */
+            statusId = "0";
+            break;
+        case 3:/* away */
+            statusId = "100";
+            break;
+        case 4:/* outforlaunch */
+            statusId = "150";
+            break;
+        case 5:/* rightback */
+            statusId = "300";
+            break;
+        case 6:/* online */
+            statusId = "400";
+            break;
+        case 7:/* onthephone */
+            statusId = "500";
+            break;
+        case 8:/* busy */
+            statusId = "600";
+            break;
+        case 9:/* donotdisturb */
+            statusId = "800";
+            break;
+        case 10:/* meeting */
+            statusId = "850";
+            break;
+        default:/* any -> online */
+            statusId = "400";
+            break;
+    }
+    qWarning() << "change status id to" << statusId;
+    m_session->setStatusId( statusId );
 }
 
 void FetionAccount::setStatusMessage( const Kopete::StatusMessage& statusMessage )
@@ -103,6 +140,18 @@ bool FetionAccount::createContact( const QString& contactId, Kopete::MetaContact
         return newContact != NULL;
     }
     return false;
+}
+
+void FetionAccount::slotLoginSuccessed()
+{
+    qWarning() << "slotLoginSuccessed";
+    myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOnline );
+}
+
+void FetionAccount::slotLogoutSuccessed()
+{
+    qWarning() << "slotLogoutSuccessed";
+    myself()->setOnlineStatus( FetionProtocol::protocol()->fetionOffline );
 }
 
 void FetionAccount::slotGotBuddy( const QString& id, const QString& buddyListName )
@@ -129,17 +178,6 @@ void FetionAccount::slotGotBuddyList( const QString& buddyListName )
     }
 }
 
-#define P_OFFLINE       -1
-#define P_HIDDEN        0
-#define P_AWAY          100
-#define P_ONTHEPHONE    150
-#define P_RIGHTBACK     300
-#define P_ONLINE        400
-#define P_OUTFORLAUNCH  500
-#define P_BUSY          600
-#define P_DONOTDISTURB  800
-#define P_MEETING       850
-
 void FetionAccount::slotBuddyStatusUpdated( const QString& id, const QString& statusId )
 {
     qWarning() << "slotBuddyStatusUpdated" << id << statusId;
@@ -160,26 +198,26 @@ void FetionAccount::slotBuddyStatusUpdated( const QString& id, const QString& st
         case P_AWAY:
             status = FetionProtocol::protocol()->fetionAway;
             break;
-        case P_ONTHEPHONE:
-            status = FetionProtocol::protocol()->fetionBusy;
+        case P_OUTFORLAUNCH:
+            status = FetionProtocol::protocol()->fetionOutForLaunch;
             break;
         case P_RIGHTBACK:
-            status = FetionProtocol::protocol()->fetionAway;
+            status = FetionProtocol::protocol()->fetionRightBack;
             break;
         case P_ONLINE:
             status = FetionProtocol::protocol()->fetionOnline;
             break;
-        case P_OUTFORLAUNCH:
-            status = FetionProtocol::protocol()->fetionBusy;
+        case P_ONTHEPHONE:
+            status = FetionProtocol::protocol()->fetionOnThePhone;
             break;
         case P_BUSY:
             status = FetionProtocol::protocol()->fetionBusy;
             break;
         case P_DONOTDISTURB:
-            status = FetionProtocol::protocol()->fetionBusy;
+            status = FetionProtocol::protocol()->fetionDoNotDisturb;
             break;
         case P_MEETING:
-            status = FetionProtocol::protocol()->fetionBusy;
+            status = FetionProtocol::protocol()->fetionMeeting;
             break;
         default:
             qWarning() << "unknown status id" << statusId;

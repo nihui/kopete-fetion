@@ -35,6 +35,7 @@ class FetionSession : public QObject
         bool isConnecting() const;
         bool isConnected() const;
         void setVisibility( bool isVisible );
+        void setStatusId( const QString& statusId );
         void setStatusMessage( const QString& statusMessage );
         void sendClientMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessage( const QString& id, const QString& message );
@@ -51,6 +52,7 @@ class FetionSession : public QObject
 
     Q_SIGNALS:
         void loginSuccessed();
+        void logoutSuccessed();
         void gotBuddyList( const QString& buddyListName );
         void gotBuddy( const QString& id, const QString& buddyListName );
         void buddyStatusUpdated( const QString& id, const QString& statusId );
