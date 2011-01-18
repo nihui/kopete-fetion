@@ -10,7 +10,7 @@ class FetionSipNotifier : public QObject
 {
     Q_OBJECT
     public:
-        FetionSipNotifier( QObject* parent = 0 );
+        explicit FetionSipNotifier( QObject* parent = 0 );
         virtual ~FetionSipNotifier();
         void connectToHost( const QString& hostAddress, int port );
         void close();

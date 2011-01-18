@@ -40,7 +40,6 @@ set(kopete_fetion_PART_SRCS
     fetionaccount.cpp
     fetionaddcontactpage.cpp
     fetioncontact.cpp
-#     fetionchatsession.cpp
     fetioneditaccountwidget.cpp
     fetionprotocol.cpp
     fetionsession.cpp
@@ -49,14 +48,6 @@ set(kopete_fetion_PART_SRCS
     fetionsiputils.cpp
     fetionvcodedialog.cpp
 )
-
-# kde4_add_executable(fetiontest ${fetiontest_SRCS})
-# target_link_libraries(fetiontest ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY} ofetion)
-# kde4_add_ui_files(kopete_facebook_PART_SRCS
-#     ui/facebookinfo.ui
-#     ui/facebookadd.ui
-#     ui/facebookaccountpreferences.ui
-# )
 
 kde4_add_plugin(kopete_fetion ${kopete_fetion_PART_SRCS})
 

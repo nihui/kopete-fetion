@@ -10,7 +10,7 @@ class FetionEditAccountWidget : public QWidget, public KopeteEditAccountWidget
 {
     Q_OBJECT
     public:
-        FetionEditAccountWidget( QWidget* parent, Kopete::Account* account );
+        explicit FetionEditAccountWidget( QWidget* parent, Kopete::Account* account );
         virtual ~FetionEditAccountWidget();
         virtual Kopete::Account* apply();
         virtual bool validateData();

@@ -19,7 +19,7 @@ class FetionProtocol : public Kopete::Protocol
 {
     Q_OBJECT
     public:
-        FetionProtocol( QObject* parent, const QVariantList& args );
+        explicit FetionProtocol( QObject* parent, const QVariantList& args );
         virtual ~FetionProtocol();
         /** Generate the widget needed to add FetionAccount */
         virtual AddContactPage* createAddContactWidget( QWidget* parent, Kopete::Account* account );

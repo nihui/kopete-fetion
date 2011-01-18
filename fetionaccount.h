@@ -13,7 +13,7 @@ class FetionAccount : public Kopete::PasswordedAccount
 {
     Q_OBJECT
     public:
-        FetionAccount( FetionProtocol* parent, const QString& accountId );
+        explicit FetionAccount( FetionProtocol* parent, const QString& accountId );
         virtual ~FetionAccount();
         virtual void connectWithPassword( const QString& password );
         virtual void disconnect();
