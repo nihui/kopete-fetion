@@ -36,7 +36,12 @@ endif(CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 
 include_directories(${KOPETE_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
 
+kde4_add_ui_files(kopete_fetion_PART_UIS
+    fetioncontactinfo.ui
+)
+
 set(kopete_fetion_PART_SRCS
+    ${kopete_fetion_PART_UIS}
     fetionaccount.cpp
     fetionaddcontactpage.cpp
     fetioncontact.cpp

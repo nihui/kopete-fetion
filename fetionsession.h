@@ -26,6 +26,7 @@ class FetionSession : public QObject
 {
     Q_OBJECT
     public:
+        typedef void (FetionSession::*FetionSipEventCallback)(bool,const FetionSipEvent&);
         explicit FetionSession( QObject* parent = 0 );
         virtual ~FetionSession();
         void setLoginInformation( const QString& accountId, const QString& password );
@@ -40,6 +41,7 @@ class FetionSession : public QObject
         void sendClientMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessageToMyself( const QString& message );
+        void requestBuddyDetail( const QString& id );
 
     private Q_SLOTS:
         void getSystemConfigFinished();
@@ -60,11 +62,15 @@ class FetionSession : public QObject
         void gotMessage( const QString& id, const QString& message );
 
     private:
+        void sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent );
+        void requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent );
+
         bool m_isConnecting;
         bool m_isConnected;
         QString m_accountId;
         QString m_password;
         QNetworkAccessManager* manager;
+        QHash<int,FetionSipEventCallback> m_callidCallback;
 
         QString picid;
         QString vcode;

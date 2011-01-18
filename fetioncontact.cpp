@@ -2,10 +2,12 @@
 
 #include "fetionaccount.h"
 #include "fetionprotocol.h"
+#include "fetionsession.h"
 
 #include <kopeteaccount.h>
 #include <kopetechatsessionmanager.h>
 
+#include <KDialog>
 #include <QDebug>
 
 FetionContact::FetionContact( Kopete::Account* account, const QString &id, Kopete::MetaContact* parent )
@@ -52,7 +54,9 @@ void FetionContact::serialize( QMap<QString, QString>& serializedData,
 
 void FetionContact::slotUserInfo()
 {
-    /// TODO retrieve contact info
+    /// TODO retrieve contact info and display in a dialog
+    FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
+    accountSession->requestBuddyDetail( contactId() );
 }
 
 void FetionContact::slotChatSessionDestroyed()
@@ -72,5 +76,6 @@ void FetionContact::slotMessageSent( Kopete::Message& message, Kopete::ChatSessi
 {
     chatSession->appendMessage( message );
     chatSession->messageSucceeded();
-    static_cast<FetionAccount*>(account())->slotSentMessage( message.to().first()->contactId(), message.plainBody() );
+    FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
+    accountSession->sendClientMessage( message.to().first()->contactId(), message.plainBody() );
 }

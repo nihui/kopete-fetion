@@ -8,6 +8,7 @@ class KActionMenu;
 class FetionProtocol;
 class FetionSession;
 class FetionBuddyInfo;
+class FetionContact;
 
 class FetionAccount : public Kopete::PasswordedAccount
 {
@@ -22,8 +23,6 @@ class FetionAccount : public Kopete::PasswordedAccount
                                       const Kopete::StatusMessage& reason = Kopete::StatusMessage(),
                                       const OnlineStatusOptions& options = None );
         virtual void setStatusMessage( const Kopete::StatusMessage& statusMessage );
-    public Q_SLOTS:
-        void slotSentMessage( const QString& id, const QString& msgContent );
     protected:
         virtual bool createContact( const QString& contactId, Kopete::MetaContact* parentContact );
     private Q_SLOTS:
@@ -34,8 +33,8 @@ class FetionAccount : public Kopete::PasswordedAccount
         void slotBuddyStatusUpdated( const QString& id, const QString& statusId );
         void slotBuddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void slotGotMessage( const QString& id, const QString& message );
-
     private:
+        friend class FetionContact;
         FetionSession* m_session;
 };
 

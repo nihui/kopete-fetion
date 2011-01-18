@@ -12,6 +12,9 @@
 #include <kopetemetacontact.h>
 #include <kopetestatusmessage.h>
 
+#include <KDialog>
+#include <KLocale>
+
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -40,6 +43,8 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
                       this, SLOT(slotBuddyInfoUpdated(const QString&,const FetionBuddyInfo&)) );
     QObject::connect( m_session, SIGNAL(gotMessage(const QString&,const QString&)),
                       this, SLOT(slotGotMessage(const QString&,const QString&)) );
+    QObject::connect( m_session, SIGNAL(gotBuddyDetail(const QString&,const QString&)),
+                      this, SLOT(slotGotBuddyDetail(const QString&,const QString&)) );
 }
 
 FetionAccount::~FetionAccount()
@@ -125,12 +130,6 @@ void FetionAccount::setOnlineStatus( const Kopete::OnlineStatus& status,
 void FetionAccount::setStatusMessage( const Kopete::StatusMessage& statusMessage )
 {
     m_session->setStatusMessage( statusMessage.message() );
-}
-
-void FetionAccount::slotSentMessage( const QString& id, const QString& msgContent )
-{
-    qWarning() << "slotSentMessage" << id << msgContent;
-    m_session->sendClientMessage( id, msgContent );
 }
 
 bool FetionAccount::createContact( const QString& contactId, Kopete::MetaContact* parentContact )
