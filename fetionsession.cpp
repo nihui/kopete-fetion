@@ -320,7 +320,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 authContent += "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>";
                 authContent += "<credentials domains=\"fetion.com.cn\"/>";
                 authContent += "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
-                sipcAuthActionEvent.addHeader( "L", QString::number( authContent.size() ) );
+                sipcAuthActionEvent.addHeader( "L", QString::number( authContent.toUtf8().size() ) );
                 sipcAuthActionEvent.setContent( authContent );
 
                 notifier->sendSipEvent( sipcAuthActionEvent );
@@ -373,7 +373,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 subscribeEvent.addHeader( "N", "PresenceV4" );
 
                 QString subscribeBody = "<args><subscription self=\"v4default;mail-count\" buddy=\"v4default\" version=\"0\"/></args>";
-                subscribeEvent.addHeader( "L", QString::number( subscribeBody.size() ) );
+                subscribeEvent.addHeader( "L", QString::number( subscribeBody.toUtf8().size() ) );
                 subscribeEvent.setContent( subscribeBody );
                 qWarning() << subscribeEvent.toString();
                 notifier->sendSipEvent( subscribeEvent );
@@ -523,7 +523,7 @@ void FetionSession::sendKeepAlive()
     sendEvent.addHeader( "N", "KeepAlive" );
 
     QString registerBody = "<args><credentials domains=\"fetion.com.cn\" /></args>";
-    sendEvent.addHeader( "L", QString::number( registerBody.size() ) );
+    sendEvent.addHeader( "L", QString::number( registerBody.toUtf8().size() ) );
     sendEvent.setContent( registerBody );
 
     notifier->sendSipEvent( sendEvent );
@@ -579,7 +579,7 @@ void FetionSession::setStatusId( const QString& statusId )
                   "<basic value=\"%1\" />"
                   "</presence></args>";
     serviceBody = serviceBody.arg( statusId );
-    sendEvent.addHeader( "L", QString::number( serviceBody.size() ) );
+    sendEvent.addHeader( "L", QString::number( serviceBody.toUtf8().size() ) );
     sendEvent.setContent( serviceBody );
 
     notifier->sendSipEvent( sendEvent );
@@ -600,7 +600,7 @@ void FetionSession::setStatusMessage( const QString& statusMessage )
                   "<custom-config type=\"PC\" version=\"%3\" />"
                   "</userinfo></args>";
     serviceBody = serviceBody.arg( statusMessage ).arg("0").arg("0");///FIXME
-    sendEvent.addHeader( "L", QString::number( serviceBody.size() ) );
+    sendEvent.addHeader( "L", QString::number( serviceBody.toUtf8().size() ) );
     sendEvent.setContent( serviceBody );
 
     notifier->sendSipEvent( sendEvent );
@@ -622,7 +622,7 @@ void FetionSession::sendClientMessage( const QString& id, const QString& message
     sendEvent.addHeader( "C", "text/plain" );
     sendEvent.addHeader( "K", "SaveHistory" );
     sendEvent.addHeader( "N", "CatMsg" );
-    sendEvent.addHeader( "L", QString::number( message.size() ) );
+    sendEvent.addHeader( "L", QString::number( message.toUtf8().size() ) );
 
     sendEvent.setContent( message );
 
@@ -646,7 +646,7 @@ void FetionSession::sendMobilePhoneMessage( const QString& id, const QString& me
 //     Astr = Astr.arg( picid ).arg( vcode );
 //     sendEvent.addHeader( "A", Astr );
     sendEvent.addHeader( "N", "SendCatSMS" );
-    sendEvent.addHeader( "L", QString::number( message.size() ) );
+    sendEvent.addHeader( "L", QString::number( message.toUtf8().size() ) );
 
     sendEvent.setContent( message );
 
@@ -661,7 +661,7 @@ void FetionSession::sendMobilePhoneMessageToMyself( const QString& message )
     sendEvent.addHeader( "Q", "2 M" );
     sendEvent.addHeader( "T", m_sipUri );
     sendEvent.addHeader( "N", "SendCatSMS" );
-    sendEvent.addHeader( "L", QString::number( message.size() ) );
+    sendEvent.addHeader( "L", QString::number( message.toUtf8().size() ) );
 
     sendEvent.setContent( message );
 

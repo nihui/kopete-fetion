@@ -247,7 +247,6 @@ void FetionAccount::slotGotMessage( const QString& id, const QString& message )
         qWarning() << "unknown sender" << id << message;
         return;
     }
-
     contact->slotMessageReceived( message );
 }
 
