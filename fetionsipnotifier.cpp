@@ -13,13 +13,18 @@ FetionSipNotifier::FetionSipNotifier( QObject* parent )
 
 FetionSipNotifier::~FetionSipNotifier()
 {
-    m_socket.close();
+    close();
 }
 
 void FetionSipNotifier::connectToHost( const QString& hostAddress, int port )
 {
     qWarning() << "FetionSipNotifier::connectToHost" << hostAddress << port;
     m_socket.connectToHost( hostAddress, port );
+}
+
+void FetionSipNotifier::close()
+{
+    m_socket.close();
 }
 
 void FetionSipNotifier::sendSipEvent( const FetionSipEvent& sipEvent )

@@ -29,10 +29,10 @@ class FetionAccount : public Kopete::PasswordedAccount
     private Q_SLOTS:
         void slotGotBuddy( const QString& id, const QString& buddyListName );
         void slotGotBuddyList( const QString& buddyListName );
+        void slotBuddyStatusUpdated( const QString& id, const QString& statusId );
         void slotBuddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void slotGotMessage( const QString& id, const QString& message );
 
-        void slotContactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status );
     private:
         FetionSession* m_session;
 };

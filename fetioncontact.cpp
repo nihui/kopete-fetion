@@ -53,7 +53,7 @@ void FetionContact::serialize( QMap<QString, QString>& serializedData,
 
 void FetionContact::slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession )
 {
-    manager()->appendMessage( message );
-    manager()->messageSucceeded();
+    chatSession->appendMessage( message );
+    chatSession->messageSucceeded();
     static_cast<FetionAccount*>(account())->slotSentMessage( message.to().first()->contactId(), message.plainBody() );
 }

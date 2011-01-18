@@ -13,6 +13,7 @@ class FetionSipNotifier : public QObject
         FetionSipNotifier( QObject* parent = 0 );
         virtual ~FetionSipNotifier();
         void connectToHost( const QString& hostAddress, int port );
+        void close();
         void sendSipEvent( const FetionSipEvent& sipEvent );
     Q_SIGNALS:
         void sipEventReceived( const FetionSipEvent& sipEvent );

@@ -18,16 +18,6 @@ class FetionBuddyInfo {
         QString smsg;
 };
 
-#define P_OFFLINE       -1
-#define P_HIDDEN        0
-#define P_AWAY          100
-#define P_ONTHEPHONE    150
-#define P_RIGHTBACK     300
-#define P_ONLINE        400
-#define P_OUTFORLAUNCH  500
-#define P_BUSY          600
-#define P_DONOTDISTURB  800
-#define P_MEETING       850
 
 class FetionSipEvent;
 class FetionSipNotifier;
@@ -42,6 +32,8 @@ class FetionSession : public QObject
         void login();
         void logout();
         QString accountId() const;
+        bool isConnecting() const;
+        bool isConnected() const;
         void setVisibility( bool isVisible );
         void setStatusMessage( const QString& statusMessage );
         void sendClientMessage( const QString& id, const QString& message );
@@ -65,8 +57,8 @@ class FetionSession : public QObject
         void buddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void gotMessage( const QString& id, const QString& message );
 
-        void contactStatusChanged( const QString& sId, const Kopete::OnlineStatus& status );
     private:
+        bool m_isConnecting;
         bool m_isConnected;
         QString m_accountId;
         QString m_password;

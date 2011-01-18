@@ -71,7 +71,9 @@ static QByteArray generateAesKey()
 
 FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 {
-    notifier = 0;
+    m_isConnecting = false;
+    m_isConnected = false;
+    notifier = new FetionSipNotifier( this );
     manager = new QNetworkAccessManager( this );
     /// one minute timer for keep alive heart beep
     m_hearter = new QTimer( this );
@@ -95,6 +97,7 @@ void FetionSession::setLoginInformation( const QString& accountId, const QString
 #define PROTO_VERSION "4.0.2510"
 void FetionSession::login()
 {
+    m_isConnecting = true;
     /// post xml system config data
     /// we do not use qdomdocument here since the data xml node attributes are order-sensitive
     QString xml;
@@ -207,6 +210,8 @@ void FetionSession::ssiAuthFinished()
     }
     else if ( statusCode == "200" ) {
         /// login success
+        m_isConnecting = false;
+        m_isConnected = true;
         qWarning() << "fetion login success   :)";
         /// emit success signal
         QDomElement userElem = docElem.firstChildElement( "user" );
@@ -220,7 +225,6 @@ void FetionSession::ssiAuthFinished()
         /// connect to sipc server
         QString sipcAddressIp = m_sipcProxyAddress.section( ':', 0, 0, QString::SectionSkipEmpty );
         int sipcAddressPort = m_sipcProxyAddress.section( ':', -1, -1, QString::SectionSkipEmpty ).toInt();
-        notifier = new FetionSipNotifier( this );
         connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
                  this, SLOT(handleSipcRegisterReplyEvent(const FetionSipEvent&)) );
         notifier->connectToHost( sipcAddressIp, sipcAddressPort );
@@ -453,13 +457,20 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
                 while ( !contactElem.isNull() ) {
                     QString id = contactElem.attribute( "id" );
                     QDomElement pElem = contactElem.firstChildElement( "p" );
-                    FetionBuddyInfo buddyInfo;
-                    buddyInfo.sid = pElem.attribute( "sid" );
-                    buddyInfo.sipuri = pElem.attribute( "su" );
-                    buddyInfo.mobileno = pElem.attribute( "m" );
-                    buddyInfo.nick = pElem.attribute( "n" );
-                    buddyInfo.smsg = pElem.attribute( "i" );
-                    emit buddyInfoUpdated( id, buddyInfo );
+                    if ( !pElem.isNull() ) {
+                        FetionBuddyInfo buddyInfo;
+                        buddyInfo.sid = pElem.attribute( "sid" );
+                        buddyInfo.sipuri = pElem.attribute( "su" );
+                        buddyInfo.mobileno = pElem.attribute( "m" );
+                        buddyInfo.nick = pElem.attribute( "n" );
+                        buddyInfo.smsg = pElem.attribute( "i" );
+                        emit buddyInfoUpdated( id, buddyInfo );
+                    }
+                    QDomElement prElem = contactElem.firstChildElement( "pr" );
+                    if ( !prElem.isNull() ) {
+                        QString statusId = prElem.attribute( "b" );
+                        emit buddyStatusUpdated( id, statusId );
+                    }
                     contactElem = contactElem.nextSiblingElement( "c" );
                 }
             }
@@ -518,12 +529,33 @@ void FetionSession::sendKeepAlive()
 
 void FetionSession::logout()
 {
+    FetionSipEvent sendEvent( FetionSipEvent::SipBye );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "Q", "2 B" );
+    sendEvent.addHeader( "T", m_sipUri );
+
+    notifier->sendSipEvent( sendEvent );
+
     m_hearter->stop();
+    notifier->close();
+
+    m_isConnected = false;
 }
 
 QString FetionSession::accountId() const
 {
     return m_accountId;
+}
+
+bool FetionSession::isConnecting() const
+{
+    return m_isConnecting;
+}
+
+bool FetionSession::isConnected() const
+{
+    return m_isConnected;
 }
 
 void FetionSession::setVisibility( bool isVisible )
