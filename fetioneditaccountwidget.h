@@ -1,11 +1,10 @@
 #ifndef FETIONEDITACCOUNTWIDGET_H
 #define FETIONEDITACCOUNTWIDGET_H
 
-#include <ui/editaccountwidget.h>
+#include <editaccountwidget.h>
 #include <QWidget>
 
-class KLineEdit;
-
+namespace Ui { class FetionEditAccount; };
 class FetionEditAccountWidget : public QWidget, public KopeteEditAccountWidget
 {
     Q_OBJECT
@@ -14,9 +13,10 @@ class FetionEditAccountWidget : public QWidget, public KopeteEditAccountWidget
         virtual ~FetionEditAccountWidget();
         virtual Kopete::Account* apply();
         virtual bool validateData();
+    private Q_SLOTS:
+        void slotOpenRegister();
     private:
-        KLineEdit* m_loginEdit;
-        KLineEdit* m_passwdEdit;
+        Ui::FetionEditAccount* m_widget;
 };
 
 #endif // FETIONEDITACCOUNTWIDGET_H

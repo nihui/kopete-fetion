@@ -34,10 +34,11 @@ endif(CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # add_subdirectory( icons )
 
-include_directories(${KOPETE_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
+include_directories(${KOPETE_INCLUDE_DIR} ${KOPETE_INCLUDE_DIR}/ui ${OPENSSL_INCLUDE_DIR})
 
 kde4_add_ui_files(kopete_fetion_PART_UIS
     fetioncontactinfo.ui
+    fetioneditaccount.ui
 )
 
 set(kopete_fetion_PART_SRCS
