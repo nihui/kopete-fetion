@@ -3,11 +3,13 @@
 #include "fetionaccount.h"
 #include "fetionprotocol.h"
 #include "fetionsession.h"
+#include "ui_fetioncontactinfo.h"
 
 #include <kopeteaccount.h>
 #include <kopetechatsessionmanager.h>
 
 #include <KDialog>
+#include <KLocale>
 #include <QDebug>
 
 FetionContact::FetionContact( Kopete::Account* account, const QString &id, Kopete::MetaContact* parent )
@@ -52,6 +54,36 @@ void FetionContact::serialize( QMap<QString, QString>& serializedData,
     Kopete::Contact::serialize( serializedData, addressBookData );
 }
 
+void FetionContact::showUserInfo( const QDomNamedNodeMap& detailMap )
+{
+    KDialog* infoDialog = new KDialog;
+    infoDialog->setButtons( KDialog::Close );
+    infoDialog->setDefaultButton( KDialog::Close );
+    Ui::FetionContactInfo info;
+    info.setupUi( infoDialog->mainWidget() );
+
+    info.m_id->setText( detailMap.namedItem( "user-id" ).nodeValue() );
+    info.m_mobileNo->setText( detailMap.namedItem( "mobile-no" ).nodeValue() );
+    info.m_carrier->setText( detailMap.namedItem( "carrier" ).nodeValue() );
+    info.m_nickname->setText( detailMap.namedItem( "nickname" ).nodeValue() );
+    info.m_gender->setText( detailMap.namedItem( "gender" ).nodeValue() );
+    info.m_birthdate->setText( detailMap.namedItem( "birth-date" ).nodeValue() );
+    info.m_personalEmail->setText( detailMap.namedItem( "personal-email" ).nodeValue() );
+    info.m_workEmail->setText( detailMap.namedItem( "work-email" ).nodeValue() );
+    info.m_otherEmail->setText( detailMap.namedItem( "other-email" ).nodeValue() );
+    info.m_lunarAnimal->setText( detailMap.namedItem( "lunar-animal" ).nodeValue() );
+    info.m_horoscope->setText( detailMap.namedItem( "horoscope" ).nodeValue() );
+    info.m_profile->setText( detailMap.namedItem( "profile" ).nodeValue() );
+    info.m_bloodtype->setText( detailMap.namedItem( "bloodtype" ).nodeValue() );
+    info.m_occupation->setText( detailMap.namedItem( "occupation" ).nodeValue() );
+    info.m_hobby->setText( detailMap.namedItem( "hobby" ).nodeValue() );
+    info.m_scoreLevel->setText( detailMap.namedItem( "score-level" ).nodeValue() );
+
+    infoDialog->setCaption( i18n( "Fetion contact" ) );
+    infoDialog->exec();
+    delete infoDialog;
+}
+
 void FetionContact::slotUserInfo()
 {
     /// TODO retrieve contact info and display in a dialog
@@ -75,7 +107,6 @@ void FetionContact::slotMessageReceived( const QString& message )
 void FetionContact::slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession )
 {
     chatSession->appendMessage( message );
-    chatSession->messageSucceeded();
     FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
     accountSession->sendClientMessage( message.to().first()->contactId(), message.plainBody() );
 }

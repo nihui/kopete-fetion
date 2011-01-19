@@ -43,8 +43,10 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
                       this, SLOT(slotBuddyInfoUpdated(const QString&,const FetionBuddyInfo&)) );
     QObject::connect( m_session, SIGNAL(gotMessage(const QString&,const QString&)),
                       this, SLOT(slotGotMessage(const QString&,const QString&)) );
-    QObject::connect( m_session, SIGNAL(gotBuddyDetail(const QString&,const QString&)),
-                      this, SLOT(slotGotBuddyDetail(const QString&,const QString&)) );
+    QObject::connect( m_session, SIGNAL(sendClientMessageSuccessed(const QString&)),
+                      this, SLOT(slotSendClientMessageSuccessed(const QString&)) );
+    QObject::connect( m_session, SIGNAL(gotBuddyDetail(const QString&,const QDomNamedNodeMap&)),
+                      this, SLOT(slotGotBuddyDetail(const QString&,const QDomNamedNodeMap&)) );
 }
 
 FetionAccount::~FetionAccount()
@@ -247,5 +249,25 @@ void FetionAccount::slotGotMessage( const QString& id, const QString& message )
         return;
     }
     contact->slotMessageReceived( message );
+}
+
+void FetionAccount::slotSendClientMessageSuccessed( const QString& id )
+{
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
+    if ( !contact ) {
+        qWarning() << "unknown sender" << id;
+        return;
+    }
+    contact->manager()->messageSucceeded();
+}
+
+void FetionAccount::slotGotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap )
+{
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
+    if ( !contact ) {
+        qWarning() << "unknown sender" << id;
+        return;
+    }
+    contact->showUserInfo( detailMap );
 }
 

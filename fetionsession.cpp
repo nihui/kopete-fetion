@@ -6,7 +6,6 @@
 #include "fetionsipnotifier.h"
 #include "fetionsiputils.h"
 #include "fetionvcodedialog.h"
-#include "ui_fetioncontactinfo.h"
 
 #include <kopetechatsession.h>
 #include <kopetecontactlist.h>
@@ -15,8 +14,6 @@
 #include <kopeteonlinestatus.h>
 
 #include <KDebug>
-#include <KDialog>
-#include <KLocale>
 
 #include <QCryptographicHash>
 #include <QDomDocument>
@@ -506,8 +503,8 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
         case FetionSipEvent::SipSipc_4_0: {
             int callid = sipEvent.getFirstValue( "I" ).toInt();
             if ( m_callidCallback.contains( callid ) ) {
-                FetionSipEventCallback cb = m_callidCallback.value( callid );
-                (this->*cb)( sipEvent.typeAddition() == "200 OK", sipEvent );
+                FetionSipEventCallbackData cbData = m_callidCallback.value( callid );
+                (this->*cbData.cb)( sipEvent.typeAddition() == "200 OK", sipEvent, cbData.data );
                 m_callidCallback.remove( callid );
             }
             break;
@@ -633,7 +630,8 @@ void FetionSession::sendClientMessage( const QString& id, const QString& message
 
     sendEvent.setContent( message );
 
-    m_callidCallback[ callid ] = &FetionSession::sendClientMessageCB;
+    FetionSipEventCallbackData cbData = { &FetionSession::sendClientMessageCB, id };
+    m_callidCallback[ callid ] = cbData;
     notifier->sendSipEvent( sendEvent );
 }
 
@@ -697,47 +695,27 @@ void FetionSession::requestBuddyDetail( const QString& id )
     sendEvent.addHeader( "L", QString::number( serviceBody.toUtf8().size() ) );
     sendEvent.setContent( serviceBody );
 
-    m_callidCallback[ callid ] = &FetionSession::requestBuddyDetailCB;
+    FetionSipEventCallbackData cbData = { &FetionSession::requestBuddyDetailCB, id };
+    m_callidCallback[ callid ] = cbData;
     notifier->sendSipEvent( sendEvent );
 }
 
-void FetionSession::sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent )
+void FetionSession::sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )
 {
     qWarning() << "sendClientMessageCB" << isSuccessed;
+    QString id = data.toString();
+    emit sendClientMessageSuccessed( id );
 }
 
-void FetionSession::requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent )
+void FetionSession::requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )
 {
+    QString id = data.toString();
+
     QDomDocument doc;
     doc.setContent( callbackEvent.getContent() );
     QDomElement rootElem = doc.documentElement();
     QDomElement contactElem = rootElem.firstChildElement( "contact" );
 
-    KDialog* infoDialog = new KDialog;
-    infoDialog->setButtons( KDialog::Close );
-    infoDialog->setDefaultButton( KDialog::Close );
-    Ui::FetionContactInfo info;
-    info.setupUi( infoDialog->mainWidget() );
-
-    info.m_id->setText( contactElem.attribute( "user-id" ) );
-    info.m_mobileNo->setText( contactElem.attribute( "mobile-no" ) );
-    info.m_carrier->setText( contactElem.attribute( "carrier" ) );
-    info.m_nickname->setText( contactElem.attribute( "nickname" ) );
-    info.m_gender->setText( contactElem.attribute( "gender" ) );
-    info.m_birthdate->setText( contactElem.attribute( "birth-date" ) );
-    info.m_personalEmail->setText( contactElem.attribute( "personal-email" ) );
-    info.m_workEmail->setText( contactElem.attribute( "work-email" ) );
-    info.m_otherEmail->setText( contactElem.attribute( "other-email" ) );
-    info.m_lunarAnimal->setText( contactElem.attribute( "lunar-animal" ) );
-    info.m_horoscope->setText( contactElem.attribute( "horoscope" ) );
-    info.m_profile->setText( contactElem.attribute( "profile" ) );
-    info.m_bloodtype->setText( contactElem.attribute( "bloodtype" ) );
-    info.m_occupation->setText( contactElem.attribute( "occupation" ) );
-    info.m_hobby->setText( contactElem.attribute( "hobby" ) );
-    info.m_scoreLevel->setText( contactElem.attribute( "score-level" ) );
-
-    infoDialog->setCaption( i18n( "Fetion contact" ) );
-    infoDialog->exec();
-    delete infoDialog;
+    emit gotBuddyDetail( id, contactElem.attributes() );
 }
 

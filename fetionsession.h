@@ -3,11 +3,12 @@
 
 #include <QObject>
 
-#include <kopeteonlinestatus.h>
 #include <QNetworkAccessManager>
 #include <QQueue>
+#include <QDomNamedNodeMap>
 #include <QHash>
 #include <QTimer>
+#include <QVariant>
 
 class FetionBuddyInfo {
     public:
@@ -18,7 +19,6 @@ class FetionBuddyInfo {
         QString smsg;
 };
 
-
 class FetionSipEvent;
 class FetionSipNotifier;
 
@@ -26,7 +26,8 @@ class FetionSession : public QObject
 {
     Q_OBJECT
     public:
-        typedef void (FetionSession::*FetionSipEventCallback)(bool,const FetionSipEvent&);
+        typedef void (FetionSession::*FetionSipEventCallback)(bool,const FetionSipEvent&,const QVariant&);
+        typedef struct { FetionSipEventCallback cb; QVariant data; } FetionSipEventCallbackData;
         explicit FetionSession( QObject* parent = 0 );
         virtual ~FetionSession();
         void setLoginInformation( const QString& accountId, const QString& password );
@@ -60,17 +61,19 @@ class FetionSession : public QObject
         void buddyStatusUpdated( const QString& id, const QString& statusId );
         void buddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void gotMessage( const QString& id, const QString& message );
+        void sendClientMessageSuccessed( const QString& id );
+        void gotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap );
 
     private:
-        void sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent );
-        void requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent );
+        void sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
+        void requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
 
         bool m_isConnecting;
         bool m_isConnected;
         QString m_accountId;
         QString m_password;
         QNetworkAccessManager* manager;
-        QHash<int,FetionSipEventCallback> m_callidCallback;
+        QHash<int,FetionSipEventCallbackData> m_callidCallback;
 
         QString picid;
         QString vcode;

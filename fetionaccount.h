@@ -4,6 +4,7 @@
 #include <kopetemessage.h>
 #include <kopetepasswordedaccount.h>
 
+class QDomNamedNodeMap;
 class KActionMenu;
 class FetionProtocol;
 class FetionSession;
@@ -33,6 +34,8 @@ class FetionAccount : public Kopete::PasswordedAccount
         void slotBuddyStatusUpdated( const QString& id, const QString& statusId );
         void slotBuddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void slotGotMessage( const QString& id, const QString& message );
+        void slotSendClientMessageSuccessed( const QString& id );
+        void slotGotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap );
     private:
         friend class FetionContact;
         FetionSession* m_session;

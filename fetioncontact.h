@@ -4,6 +4,7 @@
 #include <kopetecontact.h>
 #include <kopetemessage.h>
 #include <QList>
+#include <QDomNamedNodeMap>
 
 class FetionContact : public Kopete::Contact
 {
@@ -16,6 +17,7 @@ class FetionContact : public Kopete::Contact
         virtual Kopete::ChatSession* manager( Kopete::Contact::CanCreateFlags canCreate = Kopete::Contact::CannotCreate );
         virtual void serialize( QMap<QString, QString>& serializedData,
                                 QMap<QString, QString>& addressBookData );
+        void showUserInfo( const QDomNamedNodeMap& detailMap );
     public Q_SLOTS:
         virtual void slotUserInfo();
         void slotChatSessionDestroyed();
