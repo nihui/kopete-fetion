@@ -405,7 +405,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
 
 void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
-//     qWarning() << sipEvent.toString();
+    qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipInvite: {
             QString from = sipEvent.getFirstValue( "F" );
@@ -460,6 +460,18 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             break;
         }
         case FetionSipEvent::SipInfo: {
+            qWarning() << "got sip info event";
+            QString from = sipEvent.getFirstValue( "F" );
+            QString id = m_buddyIdSipUri.key( from );
+            QString infoContent = sipEvent.getContent();
+            QDomDocument doc;
+            doc.setContent( infoContent );
+            QDomElement docElem = doc.documentElement();
+            QDomElement stateElem = docElem.firstChildElement( "state" );
+//             qWarning() << stateElem.isNull() << stateElem.text();
+            if ( stateElem.text() == "nudge" ) {
+                emit gotNudge( id );
+            }
             break;
         }
         case FetionSipEvent::SipBENotify: {

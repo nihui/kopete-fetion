@@ -13,6 +13,8 @@
 #include <kopetemetacontact.h>
 #include <kopetestatusmessage.h>
 
+#include <KAction>
+#include <KActionMenu>
 #include <KDialog>
 #include <KLocale>
 
@@ -50,11 +52,18 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
                       this, SLOT(slotGotBuddyDetail(const QString&,const QDomNamedNodeMap&)) );
     QObject::connect( m_session, SIGNAL(buddyPortraitUpdated(const QString&,const QImage&)),
                       this, SLOT(slotBuddyPortraitUpdated(const QString&,const QImage&)) );
+    QObject::connect( m_session, SIGNAL(gotNudge(const QString&)),
+                      this, SLOT(slotGotNudge(const QString&)) );
 }
 
 FetionAccount::~FetionAccount()
 {
     qWarning() << "FetionAccount::~FetionAccount()";
+}
+
+FetionSession* FetionAccount::session() const
+{
+    return m_session;
 }
 
 void FetionAccount::connectWithPassword( const QString& password )
@@ -74,6 +83,12 @@ void FetionAccount::disconnect()
 void FetionAccount::fillActionMenu( KActionMenu* actionMenu )
 {
     Kopete::Account::fillActionMenu( actionMenu );
+    actionMenu->addSeparator();
+    KAction* sendSMSToMyself = new KAction( this );
+    sendSMSToMyself->setText( i18n( "&Send SMS to myself..." ) );
+    QObject::connect( sendSMSToMyself, SIGNAL(triggered()),
+                      this, SLOT(slotSendSMSToMyself()) );
+    actionMenu->addAction( sendSMSToMyself );
 }
 
 void FetionAccount::setOnlineStatus( const Kopete::OnlineStatus& status,
@@ -130,6 +145,7 @@ void FetionAccount::setOnlineStatus( const Kopete::OnlineStatus& status,
     }
     qWarning() << "change status id to" << statusId;
     m_session->setStatusId( statusId );
+    myself()->setOnlineStatus( status );
 }
 
 void FetionAccount::setStatusMessage( const Kopete::StatusMessage& statusMessage )
@@ -144,6 +160,11 @@ bool FetionAccount::createContact( const QString& contactId, Kopete::MetaContact
         return newContact != NULL;
     }
     return false;
+}
+
+void FetionAccount::slotSendSMSToMyself()
+{
+    /// TODO
 }
 
 void FetionAccount::slotLoginSuccessed()
@@ -292,4 +313,14 @@ void FetionAccount::slotBuddyPortraitUpdated( const QString& id, const QImage& p
     newEntry = Kopete::AvatarManager::self()->add( newEntry );
     contact->removeProperty( Kopete::Global::Properties::self()->photo() );
     contact->setProperty( Kopete::Global::Properties::self()->photo(), newEntry.path );
+}
+
+void FetionAccount::slotGotNudge( const QString& id )
+{
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
+    if ( !contact ) {
+        qWarning() << "slotGotNudge unknown sender" << id;
+        return;
+    }
+    contact->slotNudgeReceived();
 }

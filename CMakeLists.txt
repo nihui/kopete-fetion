@@ -45,6 +45,7 @@ set(kopete_fetion_PART_SRCS
     ${kopete_fetion_PART_UIS}
     fetionaccount.cpp
     fetionaddcontactpage.cpp
+    fetionchatsession.cpp
     fetioncontact.cpp
     fetioneditaccountwidget.cpp
     fetionprotocol.cpp
@@ -63,4 +64,5 @@ install(TARGETS kopete_fetion DESTINATION ${PLUGIN_INSTALL_DIR})
 
 ########### install files ###############
 
-install( FILES kopete_fetion.desktop DESTINATION ${SERVICES_INSTALL_DIR})
+install(FILES kopete_fetion.desktop DESTINATION ${SERVICES_INSTALL_DIR})
+install(FILES fetionchatui.rc DESTINATION ${DATA_INSTALL_DIR}/kopete_fetion)

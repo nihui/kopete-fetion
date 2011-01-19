@@ -66,6 +66,7 @@ class FetionSession : public QObject
         void sendClientMessageSuccessed( const QString& id );
         void gotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap );
         void buddyPortraitUpdated( const QString& id, const QImage& portrait );
+        void gotNudge( const QString& id );
 
     private:
         void sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );

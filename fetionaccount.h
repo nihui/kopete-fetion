@@ -17,6 +17,7 @@ class FetionAccount : public Kopete::PasswordedAccount
     public:
         explicit FetionAccount( FetionProtocol* parent, const QString& accountId );
         virtual ~FetionAccount();
+        FetionSession* session() const;
         virtual void connectWithPassword( const QString& password );
         virtual void disconnect();
         virtual void fillActionMenu( KActionMenu* actionMenu );
@@ -27,6 +28,7 @@ class FetionAccount : public Kopete::PasswordedAccount
     protected:
         virtual bool createContact( const QString& contactId, Kopete::MetaContact* parentContact );
     private Q_SLOTS:
+        void slotSendSMSToMyself();
         void slotLoginSuccessed();
         void slotLogoutSuccessed();
         void slotGotBuddy( const QString& id, const QString& buddyListName );
@@ -37,8 +39,8 @@ class FetionAccount : public Kopete::PasswordedAccount
         void slotSendClientMessageSuccessed( const QString& id );
         void slotGotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap );
         void slotBuddyPortraitUpdated( const QString& id, const QImage& portrait );
+        void slotGotNudge( const QString& id );
     private:
-        friend class FetionContact;
         FetionSession* m_session;
 };
 

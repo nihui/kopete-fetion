@@ -1,7 +1,7 @@
 #ifndef FETIONADDCONTACTPAGE_H
 #define FETIONADDCONTACTPAGE_H
 
-#include <ui/addcontactpage.h>
+#include <addcontactpage.h>
 
 class KLineEdit;
 

@@ -1,0 +1,12 @@
+<!DOCTYPE kpartgui>
+<kpartgui version="1" name="kopete_fetion_chat">
+    <MenuBar>
+        <Menu noMerge="1" name="file">
+            <Action name="sendNudge" />
+        </Menu>
+    </MenuBar>
+    <ToolBar name="chatToolBar">
+        <Action name="sendNudge" />
+        <Action name="sendSMS" />
+    </ToolBar>
+</kpartgui>

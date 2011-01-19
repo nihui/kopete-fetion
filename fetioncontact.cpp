@@ -1,6 +1,7 @@
 #include "fetioncontact.h"
 
 #include "fetionaccount.h"
+#include "fetionchatsession.h"
 #include "fetionprotocol.h"
 #include "fetionsession.h"
 #include "ui_fetioncontactinfo.h"
@@ -13,8 +14,7 @@
 #include <QDebug>
 
 FetionContact::FetionContact( Kopete::Account* account, const QString &id, Kopete::MetaContact* parent )
-: Kopete::Contact( account, id, parent ),
-m_manager(0L)
+: Kopete::Contact( account, id, parent )
 {
     setOnlineStatus( FetionProtocol::protocol()->fetionOffline );
 }
@@ -50,15 +50,15 @@ bool FetionContact::isReachable()
 
 Kopete::ChatSession* FetionContact::manager( Kopete::Contact::CanCreateFlags canCreate )
 {
-    if( !m_manager && canCreate ) {
-        Kopete::ContactPtrList chatmembers;
-        chatmembers.append( this );
-        m_manager = Kopete::ChatSessionManager::self()->create( account()->myself(), chatmembers, protocol() );
-        connect( m_manager, SIGNAL(messageSent(Kopete::Message&,Kopete::ChatSession*)),
-                 this, SLOT(slotMessageSent(Kopete::Message&,Kopete::ChatSession*)) );
-        connect( m_manager, SIGNAL(destroyed()), this, SLOT(slotChatSessionDestroyed()) );
+    Kopete::ContactPtrList chatmembers;
+    chatmembers.append( this );
+    Kopete::ChatSession* _m = Kopete::ChatSessionManager::self()->findChatSession( account()->myself(),
+                                                                                         chatmembers, protocol() );
+    FetionChatSession* manager = dynamic_cast<FetionChatSession*>(_m);
+    if( !manager && canCreate == Kopete::Contact::CanCreate ) {
+        manager = new FetionChatSession( account()->myself(), chatmembers, protocol() );
     }
-    return m_manager;
+    return manager;
 }
 
 void FetionContact::serialize( QMap<QString, QString>& serializedData,
@@ -100,19 +100,14 @@ void FetionContact::showUserInfo( const QDomNamedNodeMap& detailMap )
 void FetionContact::slotUserInfo()
 {
     /// TODO retrieve contact info and display in a dialog
-    FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
+    FetionSession* accountSession = static_cast<FetionAccount*>(account())->session();
     accountSession->requestBuddyDetail( contactId() );
 }
 
 void FetionContact::reloadAvatar()
 {
-    FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
+    FetionSession* accountSession = static_cast<FetionAccount*>(account())->session();
     accountSession->requestBuddyPortrait( contactId() );
-}
-
-void FetionContact::slotChatSessionDestroyed()
-{
-    m_manager = 0;
 }
 
 void FetionContact::slotMessageReceived( const QString& message )
@@ -123,9 +118,8 @@ void FetionContact::slotMessageReceived( const QString& message )
     manager( Kopete::Contact::CanCreate )->appendMessage( m );
 }
 
-void FetionContact::slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession )
+void FetionContact::slotNudgeReceived()
 {
-    chatSession->appendMessage( message );
-    FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
-    accountSession->sendClientMessage( message.to().first()->contactId(), message.plainBody() );
+    manager( Kopete::Contact::CanCreate )->emitNudgeNotification();
+    manager( Kopete::Contact::CanCreate )->receivedEventNotification( i18n( "NUDGE!!!!!" ) );
 }

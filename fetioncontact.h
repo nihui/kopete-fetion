@@ -22,11 +22,9 @@ class FetionContact : public Kopete::Contact
     public Q_SLOTS:
         virtual void slotUserInfo();
         void reloadAvatar();
-        void slotChatSessionDestroyed();
         void slotMessageReceived( const QString& message );
-        void slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession );
+        void slotNudgeReceived();
     private:
-        Kopete::ChatSession* m_manager;
 };
 
 #endif // FETIONCONTACT_H
