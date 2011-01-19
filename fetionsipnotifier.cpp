@@ -42,7 +42,7 @@ void FetionSipNotifier::slotReadyRead()
         return;
 
     QByteArray datastr = pendingBuffer + data;
-    qWarning() << datastr;
+//     qWarning() << datastr;
 
     int index = 0;
     int len = datastr.size();

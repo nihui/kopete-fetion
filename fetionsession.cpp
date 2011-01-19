@@ -99,16 +99,11 @@ void FetionSession::login()
 {
     m_isConnecting = true;
     /// post xml system config data
-    /// we do not use qdomdocument here since the data xml node attributes are order-sensitive
-    QString xml;
-    xml += "<config>";
-    xml += "<user mobile-no=\"";
-    xml += m_accountId;
-    xml += "\"/>";
-    xml += "<client type=\"PC\" version=\""PROTO_VERSION"\" platform=\"W5.1\"/>";
-    xml += "<servers version=\"0\"/><parameters version=\"0\"/><hints version=\"0\"/>";
-//         xml += "<client-config veersion=\"0\"/><services veersion=\"0\"/>";
-    xml += "</config>";
+    QString xml = "<config><user mobile-no=\"%1\"/>"
+                  "<client type=\"PC\" version=\""PROTO_VERSION"\" platform=\"W5.1\"/>"
+                  "<servers version=\"0\"/><parameters version=\"0\"/>"
+                  "<hints version=\"0\"/></config>";
+    xml = xml.arg( m_accountId );
 
     /// get system configuration
     QNetworkRequest request;
@@ -143,6 +138,12 @@ void FetionSession::getSystemConfigFinished()
     m_sipcSslProxyAddress = serversElem.firstChildElement( "sipc-ssl-proxy" ).text();
     m_httpTunnelAddress = serversElem.firstChildElement( "http-tunnel" ).text();
 
+    m_getUri = serversElem.firstChildElement( "get-uri" ).text();
+    m_getPortraitUri = m_getUri.replace( "geturi", "getportrait" );
+
+    QDomElement parametersElem = docElem.firstChildElement( "parameters" );
+    m_portraitFileTypes = parametersElem.firstChildElement( "portrait-file-type" ).text();
+
     /// ssi auth
     QNetworkRequest request;
     request.setSslConfiguration( QSslConfiguration::defaultConfiguration() );
@@ -150,15 +151,15 @@ void FetionSession::getSystemConfigFinished()
     QUrl url;
     url.setUrl( m_ssiAppSignInV2Uri );
     url.setPort( 443 );
-    url.addQueryItem( "mobileno", m_accountId );
-    url.addQueryItem( "domains", "fetion.com.cn" );
-    url.addQueryItem( "v4digest-type", "1" );
-    url.addQueryItem( "v4digest", myhash( QByteArray() , m_password.toAscii() ).toHex() );
+    url.addEncodedQueryItem( "mobileno", m_accountId.toAscii() );
+    url.addEncodedQueryItem( "domains", "fetion.com.cn" );
+    url.addEncodedQueryItem( "v4digest-type", "1" );
+    url.addEncodedQueryItem( "v4digest", myhash( QByteArray() , m_password.toAscii() ).toHex() );
 
     if ( !picid.isEmpty() && !vcode.isEmpty() && !algorithm.isEmpty() ) {
-        url.addQueryItem( "pid", picid );
-        url.addQueryItem( "pic", vcode );
-        url.addQueryItem( "algorithm", algorithm );
+        url.addEncodedQueryItem( "pid", picid.toAscii() );
+        url.addEncodedQueryItem( "pic", vcode.toAscii() );
+        url.addEncodedQueryItem( "algorithm", algorithm.toAscii() );
     }
 
     request.setUrl( url );
@@ -176,8 +177,8 @@ void FetionSession::ssiAuthFinished()
 {
     QNetworkReply* reply = (QNetworkReply*)sender();
     QString data = QString::fromUtf8( reply->readAll() );
+    QByteArray cookieHeader = reply->rawHeader( "Set-Cookie" );
     reply->deleteLater();
-    qWarning() << data;
 
     QDomDocument doc;
     doc.setContent( data );
@@ -197,7 +198,7 @@ void FetionSession::ssiAuthFinished()
         QUrl url;
         url.setUrl( m_getPicCodeUri );
         url.setPort( 80 );
-        url.addQueryItem( "algorithm", algorithm );// + " HTTP/1.1" );
+        url.addEncodedQueryItem( "algorithm", algorithm.toAscii() );
         request.setUrl( url );
 
         request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
@@ -209,6 +210,10 @@ void FetionSession::ssiAuthFinished()
         return;
     }
     else if ( statusCode == "200" ) {
+        int cookieBegin = cookieHeader.indexOf( "ssic=", 0 ) + 5;/// length of ssic=
+        int cookieEnd = cookieHeader.indexOf( ";", cookieBegin );
+        m_ssicCookie = cookieHeader.mid( cookieBegin, cookieEnd - cookieBegin );
+
         QDomElement userElem = docElem.firstChildElement( "user" );
         m_sipUri = userElem.attribute( "uri" );
         QString mobileno = userElem.attribute( "mobile-no" );
@@ -225,7 +230,7 @@ void FetionSession::ssiAuthFinished()
         notifier->connectToHost( sipcAddressIp, sipcAddressPort );
 
         /// sipc register
-        QString m_nouce = generateNouce();
+        m_nouce = generateNouce();
         FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
         registerEvent.addHeader( "F", m_from );
         registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
@@ -257,6 +262,16 @@ void FetionSession::getCodePicFinished()
     vcode = codetext;
 
     login();
+}
+
+void FetionSession::requestBuddyPortraitFinished()
+{
+    QNetworkReply* reply = (QNetworkReply*)sender();
+    QByteArray data = reply->readAll();
+    QImage img = QImage::fromData( data );
+    emit buddyPortraitUpdated( m_portraitReplyId.value( reply ), img );
+    m_portraitReplyId.remove( reply );
+    reply->deleteLater();
 }
 
 void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent )
@@ -518,9 +533,10 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 
 void FetionSession::sendKeepAlive()
 {
+    int callid = FetionSipEvent::nextCallid();
     FetionSipEvent sendEvent( FetionSipEvent::SipRegister );
     sendEvent.addHeader( "F", m_from );
-    sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sendEvent.addHeader( "I", QString::number( callid ) );
     sendEvent.addHeader( "Q", "2 R" );
     sendEvent.addHeader( "T", m_sipUri );
     sendEvent.addHeader( "N", "KeepAlive" );
@@ -529,6 +545,8 @@ void FetionSession::sendKeepAlive()
     sendEvent.addHeader( "L", QString::number( registerBody.toUtf8().size() ) );
     sendEvent.setContent( registerBody );
 
+    FetionSipEventCallbackData cbData = { &FetionSession::sendKeepAliveCB, QVariant() };
+    m_callidCallback[ callid ] = cbData;
     notifier->sendSipEvent( sendEvent );
 }
 
@@ -700,8 +718,41 @@ void FetionSession::requestBuddyDetail( const QString& id )
     notifier->sendSipEvent( sendEvent );
 }
 
+void FetionSession::requestBuddyPortrait( const QString& id )
+{
+    QString to = m_buddyIdSipUri.value( id );
+    if ( to.isEmpty() ) {
+        qWarning() << "no such sipuri for contact id" << id;
+        return;
+    }
+
+    QNetworkRequest request;
+    QUrl url;
+    url.setUrl( m_getPortraitUri );
+    url.setPort( 80 );
+    url.addEncodedQueryItem( "Uri", QUrl::toPercentEncoding( to ) );
+    url.addEncodedQueryItem( "Size", "120" );
+    url.addEncodedQueryItem( "c", QUrl::toPercentEncoding( m_ssicCookie ) );
+    request.setUrl( url );
+    request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
+    request.setRawHeader( "Accept", m_portraitFileTypes.toAscii() );
+    request.setRawHeader( "Host", "hdss1fta.fetion.com.cn" );
+    request.setRawHeader( "Connection", "Keep-Alive" );
+    QNetworkReply* r = manager->get( request );
+    m_portraitReplyId[ r ] = id;
+    connect( r, SIGNAL(finished()), this, SLOT(requestBuddyPortraitFinished()) );
+}
+
+void FetionSession::sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )
+{
+    Q_UNUSED(callbackEvent)
+    Q_UNUSED(data)
+    qWarning() << "sendKeepAliveCB" << isSuccessed;
+}
+
 void FetionSession::sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )
 {
+    Q_UNUSED(callbackEvent)
     qWarning() << "sendClientMessageCB" << isSuccessed;
     QString id = data.toString();
     emit sendClientMessageSuccessed( id );
@@ -709,13 +760,12 @@ void FetionSession::sendClientMessageCB( bool isSuccessed, const FetionSipEvent&
 
 void FetionSession::requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )
 {
+    qWarning() << "requestBuddyDetailCB" << isSuccessed;
     QString id = data.toString();
-
     QDomDocument doc;
     doc.setContent( callbackEvent.getContent() );
     QDomElement rootElem = doc.documentElement();
     QDomElement contactElem = rootElem.firstChildElement( "contact" );
-
     emit gotBuddyDetail( id, contactElem.attributes() );
 }
 

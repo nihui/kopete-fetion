@@ -43,11 +43,13 @@ class FetionSession : public QObject
         void sendMobilePhoneMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessageToMyself( const QString& message );
         void requestBuddyDetail( const QString& id );
+        void requestBuddyPortrait( const QString& id );
 
     private Q_SLOTS:
         void getSystemConfigFinished();
         void ssiAuthFinished();
         void getCodePicFinished();
+        void requestBuddyPortraitFinished();
         void handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent );
         void handleSipEvent( const FetionSipEvent& sipEvent );
 
@@ -63,8 +65,10 @@ class FetionSession : public QObject
         void gotMessage( const QString& id, const QString& message );
         void sendClientMessageSuccessed( const QString& id );
         void gotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap );
+        void buddyPortraitUpdated( const QString& id, const QImage& portrait );
 
     private:
+        void sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
         void sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
         void requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
 
@@ -74,6 +78,10 @@ class FetionSession : public QObject
         QString m_password;
         QNetworkAccessManager* manager;
         QHash<int,FetionSipEventCallbackData> m_callidCallback;
+
+        QHash<QNetworkReply*,QString> m_portraitReplyId;
+
+        QString m_ssicCookie;
 
         QString picid;
         QString vcode;
@@ -86,6 +94,11 @@ class FetionSession : public QObject
         QString m_sipcProxyAddress;
         QString m_sipcSslProxyAddress;
         QString m_httpTunnelAddress;
+        QString m_getUri;
+
+        QString m_getPortraitUri;
+        QString m_portraitFileTypes;
+
         QString m_nouce;
 
         QString m_sipUri;
