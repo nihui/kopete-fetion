@@ -14,12 +14,14 @@ class FetionContact : public Kopete::Contact
         virtual ~FetionContact();
         virtual bool isReachable();
 //         virtual QList<KAction*>* customContextMenuActions();
+//         virtual QList<KAction*>* customContextMenuActions( Kopete::ChatSession* chatSession );
         virtual Kopete::ChatSession* manager( Kopete::Contact::CanCreateFlags canCreate = Kopete::Contact::CannotCreate );
         virtual void serialize( QMap<QString, QString>& serializedData,
                                 QMap<QString, QString>& addressBookData );
         void showUserInfo( const QDomNamedNodeMap& detailMap );
     public Q_SLOTS:
         virtual void slotUserInfo();
+        void reloadAvatar();
         void slotChatSessionDestroyed();
         void slotMessageReceived( const QString& message );
         void slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession );

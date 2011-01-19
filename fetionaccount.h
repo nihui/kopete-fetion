@@ -36,6 +36,7 @@ class FetionAccount : public Kopete::PasswordedAccount
         void slotGotMessage( const QString& id, const QString& message );
         void slotSendClientMessageSuccessed( const QString& id );
         void slotGotBuddyDetail( const QString& id, const QDomNamedNodeMap& detailMap );
+        void slotBuddyPortraitUpdated( const QString& id, const QImage& portrait );
     private:
         friend class FetionContact;
         FetionSession* m_session;

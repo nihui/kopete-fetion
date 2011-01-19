@@ -6,6 +6,7 @@
 #include "fetionsipnotifier.h"
 #include "fetionvcodedialog.h"
 
+#include <kopeteavatarmanager.h>
 #include <kopetechatsession.h>
 #include <kopetecontactlist.h>
 #include <kopetegroup.h>
@@ -47,6 +48,8 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
                       this, SLOT(slotSendClientMessageSuccessed(const QString&)) );
     QObject::connect( m_session, SIGNAL(gotBuddyDetail(const QString&,const QDomNamedNodeMap&)),
                       this, SLOT(slotGotBuddyDetail(const QString&,const QDomNamedNodeMap&)) );
+    QObject::connect( m_session, SIGNAL(buddyPortraitUpdated(const QString&,const QImage&)),
+                      this, SLOT(slotBuddyPortraitUpdated(const QString&,const QImage&)) );
 }
 
 FetionAccount::~FetionAccount()
@@ -166,6 +169,7 @@ void FetionAccount::slotGotBuddy( const QString& id, const QString& buddyListNam
             Kopete::Group* group = Kopete::ContactList::self()->findGroup( buddyListName );
             Kopete::MetaContact* mc = addContact( id, id, group );
         }
+        m_session->requestBuddyPortrait( id );
     }
 }
 
@@ -233,7 +237,7 @@ void FetionAccount::slotBuddyInfoUpdated( const QString& id, const FetionBuddyIn
     qWarning() << "slotBuddyInfoUpdated" << id;
     FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
     if ( !contact ) {
-        qWarning() << "unknown contact info update" << id;
+        qWarning() << "slotBuddyInfoUpdated unknown contact" << id;
         return;
     }
     contact->setNickName( buddyInfo.nick.isEmpty() ? id : buddyInfo.nick );
@@ -245,7 +249,7 @@ void FetionAccount::slotGotMessage( const QString& id, const QString& message )
 {
     FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
     if ( !contact ) {
-        qWarning() << "unknown sender" << id << message;
+        qWarning() << "slotGotMessage unknown sender" << id << message;
         return;
     }
     contact->slotMessageReceived( message );
@@ -255,7 +259,7 @@ void FetionAccount::slotSendClientMessageSuccessed( const QString& id )
 {
     FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
     if ( !contact ) {
-        qWarning() << "unknown sender" << id;
+        qWarning() << "slotSendClientMessageSuccessed unknown sender" << id;
         return;
     }
     contact->manager()->messageSucceeded();
@@ -265,9 +269,27 @@ void FetionAccount::slotGotBuddyDetail( const QString& id, const QDomNamedNodeMa
 {
     FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
     if ( !contact ) {
-        qWarning() << "unknown sender" << id;
+        qWarning() << "slotGotBuddyDetail unknown sender" << id;
         return;
     }
     contact->showUserInfo( detailMap );
 }
 
+void FetionAccount::slotBuddyPortraitUpdated( const QString& id, const QImage& portrait )
+{
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
+    if ( !contact ) {
+        qWarning() << "slotBuddyPortraitUpdated unknown sender" << id;
+        return;
+    }
+
+    Kopete::AvatarManager::AvatarEntry newEntry;
+    newEntry.name = "kopete-fetion" + id;
+    newEntry.image = portrait;
+    newEntry.contact = contact;
+    newEntry.category = Kopete::AvatarManager::Contact;
+
+    newEntry = Kopete::AvatarManager::self()->add( newEntry );
+    contact->removeProperty( Kopete::Global::Properties::self()->photo() );
+    contact->setProperty( Kopete::Global::Properties::self()->photo(), newEntry.path );
+}

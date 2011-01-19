@@ -31,7 +31,20 @@ bool FetionContact::isReachable()
 // QList<KAction*>* FetionContact::customContextMenuActions()
 // {
 //     QList<KAction*>* actions = new QList<KAction*>;
-//    /// TODO: add custom actions here
+//     KAction* a = new KAction( this );
+//     a->setText( i18n( "&Reload avatar" ) );
+//     connect( a, SIGNAL(triggered()), this, SLOT(reloadAvatar()) );
+//     actions->append( a );
+//     return actions;
+// }
+//
+// QList<KAction*>* FetionContact::customContextMenuActions( Kopete::ChatSession* chatSession )
+// {
+//     QList<KAction*>* actions = new QList<KAction*>;
+//     KAction* a = new KAction( this );
+//     a->setText( i18n( "&Reload avatar" ) );
+//     connect( a, SIGNAL(triggered()), this, SLOT(reloadAvatar()) );
+//     actions->append( a );
 //     return actions;
 // }
 
@@ -51,7 +64,7 @@ Kopete::ChatSession* FetionContact::manager( Kopete::Contact::CanCreateFlags can
 void FetionContact::serialize( QMap<QString, QString>& serializedData,
                                QMap<QString, QString>& addressBookData )
 {
-    Kopete::Contact::serialize( serializedData, addressBookData );
+    serializedData["avatar"] = property( Kopete::Global::Properties::self()->photo() ).value().toString();
 }
 
 void FetionContact::showUserInfo( const QDomNamedNodeMap& detailMap )
@@ -89,6 +102,12 @@ void FetionContact::slotUserInfo()
     /// TODO retrieve contact info and display in a dialog
     FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
     accountSession->requestBuddyDetail( contactId() );
+}
+
+void FetionContact::reloadAvatar()
+{
+    FetionSession* accountSession = static_cast<FetionAccount*>(account())->m_session;
+    accountSession->requestBuddyPortrait( contactId() );
 }
 
 void FetionContact::slotChatSessionDestroyed()
