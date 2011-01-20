@@ -88,7 +88,7 @@ class FetionSession : public QObject
         QString vcode;
         QString algorithm;
         QString type;
-        FetionSipNotifier* notifier;
+        FetionSipNotifier* m_notifier;
 
         QString m_ssiAppSignInV2Uri;
         QString m_getPicCodeUri;

@@ -73,7 +73,7 @@ FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 {
     m_isConnecting = false;
     m_isConnected = false;
-    notifier = new FetionSipNotifier( this );
+    m_notifier = new FetionSipNotifier( this );
     manager = new QNetworkAccessManager( this );
     /// one minute timer for keep alive heart beep
     m_hearter = new QTimer( this );
@@ -84,7 +84,7 @@ FetionSession::FetionSession( QObject* parent ) : QObject(parent)
 FetionSession::~FetionSession()
 {
     qWarning() << "FetionSession::~FetionSession()";
-//     delete notifier;
+//     delete m_notifier;
 //     disconnect();
 }
 
@@ -225,9 +225,9 @@ void FetionSession::ssiAuthFinished()
         /// connect to sipc server
         QString sipcAddressIp = m_sipcProxyAddress.section( ':', 0, 0, QString::SectionSkipEmpty );
         int sipcAddressPort = m_sipcProxyAddress.section( ':', -1, -1, QString::SectionSkipEmpty ).toInt();
-        connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+        connect( m_notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
                  this, SLOT(handleSipcRegisterReplyEvent(const FetionSipEvent&)) );
-        notifier->connectToHost( sipcAddressIp, sipcAddressPort );
+        m_notifier->connectToHost( sipcAddressIp, sipcAddressPort );
 
         /// sipc register
         m_nouce = generateNouce();
@@ -238,7 +238,7 @@ void FetionSession::ssiAuthFinished()
         registerEvent.addHeader( "CN", m_nouce );
         registerEvent.addHeader( "CL", "type=\"pc\" ,version=\""PROTO_VERSION"\"" );
 
-        notifier->sendSipEvent( registerEvent );
+        m_notifier->sendSipEvent( registerEvent );
     }
 }
 
@@ -336,7 +336,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 sipcAuthActionEvent.addHeader( "L", QString::number( authContent.toUtf8().size() ) );
                 sipcAuthActionEvent.setContent( authContent );
 
-                notifier->sendSipEvent( sipcAuthActionEvent );
+                m_notifier->sendSipEvent( sipcAuthActionEvent );
             }
             else if ( sipEvent.typeAddition() == "200 OK" ) {
                 /// sipc register success
@@ -347,9 +347,9 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 qWarning() << "fetion login success   :)";
                 emit loginSuccessed();
 
-                disconnect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                disconnect( m_notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
                             this, SLOT(handleSipcRegisterReplyEvent(const FetionSipEvent&)) );
-                connect( notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                connect( m_notifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
                          this, SLOT(handleSipEvent(const FetionSipEvent&)) );
                 /// extract buddy lists and buddies
                 QDomDocument doc;
@@ -389,7 +389,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 subscribeEvent.addHeader( "L", QString::number( subscribeBody.toUtf8().size() ) );
                 subscribeEvent.setContent( subscribeBody );
                 qWarning() << subscribeEvent.toString();
-                notifier->sendSipEvent( subscribeEvent );
+                m_notifier->sendSipEvent( subscribeEvent );
 
                 /// start sending keep alive to server every minute
                 m_hearter->start();
@@ -405,6 +405,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
 
 void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
+    FetionSipNotifier* notifier = static_cast<FetionSipNotifier*>(sender());
     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipInvite: {
@@ -461,6 +462,8 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
         }
         case FetionSipEvent::SipInfo: {
             qWarning() << "got sip info event";
+            QString callid = sipEvent.getFirstValue( "I" );
+            QString sequence = sipEvent.getFirstValue( "Q" );
             QString from = sipEvent.getFirstValue( "F" );
             QString id = m_buddyIdSipUri.key( from );
             QString infoContent = sipEvent.getContent();
@@ -471,6 +474,13 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 //             qWarning() << stateElem.isNull() << stateElem.text();
             if ( stateElem.text() == "nudge" ) {
                 emit gotNudge( id );
+                /// reply to the nudge
+                FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
+                returnEvent.setTypeAddition( "200 OK" );
+                returnEvent.addHeader( "I", callid );
+                returnEvent.addHeader( "Q", sequence );
+                returnEvent.addHeader( "F", from );
+                notifier->sendSipEvent( returnEvent );
             }
             break;
         }
@@ -506,6 +516,30 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             }
             else if ( notifyType == "Conversation" ) {
                 ///
+                QDomDocument doc;
+                doc.setContent( sipEvent.getContent() );
+                QDomElement docElem = doc.documentElement();
+                QDomElement eventElem = docElem.firstChildElement( "event" );
+                while ( !eventElem.isNull() ) {
+                    QString eventType = eventElem.attribute( "type" );
+                    if ( eventType == "Support" ) {
+                        /// TODO indicate contact can support the following capability
+                        QString supportTypes = eventElem.text();
+                    }
+                    else if ( eventType == "UserEntered" ) {
+                        /// TODO a member enter the conversation
+                        QDomElement memberElem = eventElem.firstChildElement( "member" );
+                        QString memberSipUri = memberElem.attribute( "uri" );
+                        qWarning() << memberSipUri << "enter the conversation";
+                    }
+                    else if ( eventType == "UserLeft" ) {
+                        /// TODO a member leave the conversation
+                        QDomElement memberElem = eventElem.firstChildElement( "member" );
+                        QString memberSipUri = memberElem.attribute( "uri" );
+                        qWarning() << memberSipUri << "leave the conversation";
+                    }
+                    eventElem = eventElem.nextSiblingElement( "event" );
+                }
             }
             else if ( notifyType == "contact" ) {
                 ///
@@ -559,7 +593,7 @@ void FetionSession::sendKeepAlive()
 
     FetionSipEventCallbackData cbData = { &FetionSession::sendKeepAliveCB, QVariant() };
     m_callidCallback[ callid ] = cbData;
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::logout()
@@ -570,10 +604,10 @@ void FetionSession::logout()
     sendEvent.addHeader( "Q", "2 B" );
     sendEvent.addHeader( "T", m_sipUri );
 
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 
     m_hearter->stop();
-    notifier->close();
+    m_notifier->close();
 
     m_isConnected = false;
     emit logoutSuccessed();
@@ -615,7 +649,7 @@ void FetionSession::setStatusId( const QString& statusId )
     sendEvent.addHeader( "L", QString::number( serviceBody.toUtf8().size() ) );
     sendEvent.setContent( serviceBody );
 
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::setStatusMessage( const QString& statusMessage )
@@ -636,7 +670,7 @@ void FetionSession::setStatusMessage( const QString& statusMessage )
     sendEvent.addHeader( "L", QString::number( serviceBody.toUtf8().size() ) );
     sendEvent.setContent( serviceBody );
 
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::sendClientMessage( const QString& id, const QString& message )
@@ -662,7 +696,7 @@ void FetionSession::sendClientMessage( const QString& id, const QString& message
 
     FetionSipEventCallbackData cbData = { &FetionSession::sendClientMessageCB, id };
     m_callidCallback[ callid ] = cbData;
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::sendMobilePhoneMessage( const QString& id, const QString& message )
@@ -678,15 +712,12 @@ void FetionSession::sendMobilePhoneMessage( const QString& id, const QString& me
     sendEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
     sendEvent.addHeader( "Q", "2 M" );
     sendEvent.addHeader( "T", to );
-//     QString Astr( "Verify algorithm=\"picc\",chid=\"%1\",response=\"%2\"" );
-//     Astr = Astr.arg( picid ).arg( vcode );
-//     sendEvent.addHeader( "A", Astr );
     sendEvent.addHeader( "N", "SendCatSMS" );
     sendEvent.addHeader( "L", QString::number( message.toUtf8().size() ) );
 
     sendEvent.setContent( message );
 
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::sendMobilePhoneMessageToMyself( const QString& message )
@@ -701,7 +732,7 @@ void FetionSession::sendMobilePhoneMessageToMyself( const QString& message )
 
     sendEvent.setContent( message );
 
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::requestBuddyDetail( const QString& id )
@@ -727,7 +758,7 @@ void FetionSession::requestBuddyDetail( const QString& id )
 
     FetionSipEventCallbackData cbData = { &FetionSession::requestBuddyDetailCB, id };
     m_callidCallback[ callid ] = cbData;
-    notifier->sendSipEvent( sendEvent );
+    m_notifier->sendSipEvent( sendEvent );
 }
 
 void FetionSession::requestBuddyPortrait( const QString& id )
