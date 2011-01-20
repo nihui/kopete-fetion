@@ -23,6 +23,8 @@ FetionAddContactPage::~FetionAddContactPage()
 
 bool FetionAddContactPage::apply( Kopete::Account* account, Kopete::MetaContact* metaContact )
 {
+    /// TODO
+    return false;
 }
 
 bool FetionAddContactPage::validateData()

@@ -268,6 +268,7 @@ void FetionSession::requestBuddyPortraitFinished()
 
 void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent )
 {
+    qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipSipc_4_0: {
             if ( sipEvent.typeAddition() == "401 Unauthoried" ) {
@@ -312,9 +313,11 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 Astr = Astr.arg( QLatin1String( response ) );
                 sipcAuthActionEvent.addHeader( "A", Astr );
                 sipcAuthActionEvent.addHeader( "AK", "ak-value" );
-                QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
-                ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
-                sipcAuthActionEvent.addHeader( "A", ackaStr );
+                if ( !vcode.isEmpty() ) {
+                    QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
+                    ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
+                    sipcAuthActionEvent.addHeader( "A", ackaStr );
+                }
 
                 QString authContent = "<args><device machine-code=\"001676C0E351\"/>"
                                       "<caps value=\"1ff\"/><events value=\"7f\"/>"
