@@ -6,6 +6,8 @@
 #include <QList>
 #include <QDomNamedNodeMap>
 
+class FetionSipNotifier;
+
 class FetionContact : public Kopete::Contact
 {
     Q_OBJECT

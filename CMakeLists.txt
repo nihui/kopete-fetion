@@ -61,6 +61,7 @@ kde4_add_plugin(kopete_fetion ${kopete_fetion_PART_SRCS})
 target_link_libraries(kopete_fetion ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY} crypto)
 
 install(TARGETS kopete_fetion DESTINATION ${PLUGIN_INSTALL_DIR})
+kde4_install_icons(${DATA_INSTALL_DIR}/kopete/icons)
 
 ########### install files ###############
 

@@ -3,6 +3,8 @@
 
 #include <kopetechatsession.h>
 class KAction;
+class KToggleAction;
+class FetionSipNotifier;
 
 class FetionChatSession : public Kopete::ChatSession
 {
@@ -13,11 +15,17 @@ class FetionChatSession : public Kopete::ChatSession
                                      Kopete::Protocol* protocol,
                                      Kopete::ChatSession::Form form = Small );
         virtual ~FetionChatSession();
+//         void requestChatChannel();
+        void setChatChannel( FetionSipNotifier* chatChannel );
+        FetionSipNotifier* chatChannel() const;
     private Q_SLOTS:
         void slotMessageSent( Kopete::Message& message, Kopete::ChatSession* chatSession );
+        void slotSendNudge();
+//         void slotSendPending();
     private:
+        FetionSipNotifier* m_chatChannel;
         KAction* m_sendNudge;
-        KAction* m_sendSMS;
+        KToggleAction* m_sendSMS;
 };
 
 #endif // FETIONCHATSESSION_H

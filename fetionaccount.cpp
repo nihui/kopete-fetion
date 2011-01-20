@@ -1,5 +1,6 @@
 #include "fetionaccount.h"
 
+#include "fetionchatsession.h"
 #include "fetioncontact.h"
 #include "fetionprotocol.h"
 #include "fetionsession.h"
@@ -40,6 +41,8 @@ FetionAccount::FetionAccount( FetionProtocol* parent, const QString& accountId )
                       this, SLOT(slotGotBuddy(const QString&,const QString&)) );
     QObject::connect( m_session, SIGNAL(gotBuddyList(const QString&)),
                       this, SLOT(slotGotBuddyList(const QString&)) );
+    QObject::connect( m_session, SIGNAL(chatChannelAccepted(const QString&,FetionSipNotifier*)),
+                      this, SLOT(slotChatChannelAccepted(const QString&,FetionSipNotifier*)) );
     QObject::connect( m_session, SIGNAL(buddyStatusUpdated(const QString&,const QString&)),
                       this, SLOT(slotBuddyStatusUpdated(const QString&,const QString&)) );
     QObject::connect( m_session, SIGNAL(buddyInfoUpdated(const QString&,const FetionBuddyInfo&)),
@@ -202,6 +205,18 @@ void FetionAccount::slotGotBuddyList( const QString& buddyListName )
         group = new Kopete::Group( buddyListName );
         Kopete::ContactList::self()->addGroup( group );
     }
+}
+
+void FetionAccount::slotChatChannelAccepted( const QString& id, FetionSipNotifier* chatChannel )
+{
+    qWarning() << "slotChatChannelConnected" << id;
+    FetionContact* contact = qobject_cast<FetionContact*>(contacts().value( id ));
+    if ( !contact ) {
+        qWarning() << "slotBuddyInfoUpdated unknown contact" << id;
+        return;
+    }
+    FetionChatSession* chatSession = static_cast<FetionChatSession*>(contact->manager( Kopete::Contact::CanCreate ));
+    chatSession->setChatChannel( chatChannel );
 }
 
 void FetionAccount::slotBuddyStatusUpdated( const QString& id, const QString& statusId )

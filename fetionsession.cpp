@@ -7,14 +7,6 @@
 #include "fetionsiputils.h"
 #include "fetionvcodedialog.h"
 
-#include <kopetechatsession.h>
-#include <kopetecontactlist.h>
-#include <kopetemessage.h>
-#include <kopetemetacontact.h>
-#include <kopeteonlinestatus.h>
-
-#include <KDebug>
-
 #include <QCryptographicHash>
 #include <QDomDocument>
 #include <QDomElement>
@@ -406,10 +398,12 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
 void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
 {
     FetionSipNotifier* notifier = static_cast<FetionSipNotifier*>(sender());
-    qWarning() << sipEvent.toString();
+//     qWarning() << sipEvent.toString();
     switch ( sipEvent.sipType() ) {
         case FetionSipEvent::SipInvite: {
             QString from = sipEvent.getFirstValue( "F" );
+            QString callid = sipEvent.getFirstValue( "I" );
+            QString sequence = sipEvent.getFirstValue( "Q" );
             QString auth = sipEvent.getFirstValue( "A" );
             QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
             QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
@@ -418,17 +412,18 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
 
             qWarning() << "Received a conversation invitation";
-            FetionSipNotifier* conversionNotifier = new FetionSipNotifier( this );
-            connect( conversionNotifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+            FetionSipNotifier* chatNotifier = new FetionSipNotifier( this );
+            connect( chatNotifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
                      this, SLOT(handleSipEvent(const FetionSipEvent&)) );
-            conversionNotifier->connectToHost( firstAddress, firstPort.toInt() );
+            chatNotifier->connectToHost( firstAddress, firstPort.toInt() );
+            emit chatChannelAccepted( m_buddyIdSipUri.key( from ), chatNotifier );
 
             /// reply to the invitation
             FetionSipEvent returnEvent( FetionSipEvent::SipSipc_4_0 );
             returnEvent.setTypeAddition( "200 OK" );
             returnEvent.addHeader( "F", from );
-            returnEvent.addHeader( "I", "-61" );
-            returnEvent.addHeader( "Q", "200002 I" );
+            returnEvent.addHeader( "I", callid );
+            returnEvent.addHeader( "Q", sequence );
             notifier->sendSipEvent( returnEvent );
 
             /// register to conversation sip server
@@ -437,10 +432,11 @@ void FetionSession::handleSipEvent( const FetionSipEvent& sipEvent )
             registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
             registerEvent.addHeader( "Q", "2 R" );
             registerEvent.addHeader( "A", "TICKS auth=\"" + credential + "\"" );
+            registerEvent.addHeader( "K", "text/plain" );
             registerEvent.addHeader( "K", "text/html-fragment" );
             registerEvent.addHeader( "K", "multiparty" );
             registerEvent.addHeader( "K", "nudge" );
-            conversionNotifier->sendSipEvent( registerEvent );
+            chatNotifier->sendSipEvent( registerEvent );
             break;
         }
         case FetionSipEvent::SipMessage: {
@@ -673,7 +669,21 @@ void FetionSession::setStatusMessage( const QString& statusMessage )
     m_notifier->sendSipEvent( sendEvent );
 }
 
-void FetionSession::sendClientMessage( const QString& id, const QString& message )
+void FetionSession::requestChatChannel()
+{
+    int callid = FetionSipEvent::nextCallid();
+    FetionSipEvent sendEvent( FetionSipEvent::SipService );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( callid ) );
+    sendEvent.addHeader( "Q", "2 S" );
+    sendEvent.addHeader( "N", "StartChat" );
+
+    FetionSipEventCallbackData cbData = { &FetionSession::requestChatChannelCB, QVariant() };
+    m_callidCallback[ callid ] = cbData;
+    m_notifier->sendSipEvent( sendEvent );
+}
+
+void FetionSession::sendClientMessage( const QString& id, const QString& message, FetionSipNotifier* chatChannel )
 {
     QString to = m_buddyIdSipUri.value( id );
     if ( to.isEmpty() ) {
@@ -696,7 +706,33 @@ void FetionSession::sendClientMessage( const QString& id, const QString& message
 
     FetionSipEventCallbackData cbData = { &FetionSession::sendClientMessageCB, id };
     m_callidCallback[ callid ] = cbData;
-    m_notifier->sendSipEvent( sendEvent );
+    if ( chatChannel )
+        chatChannel->sendSipEvent( sendEvent );
+    else
+        m_notifier->sendSipEvent( sendEvent );
+}
+
+void FetionSession::sendClientNudge( FetionSipNotifier* chatChannel )
+{
+    if ( !chatChannel ) {
+        qWarning() << "send client nudge without a chat channel is not allowed!";
+        return;
+    }
+
+    int callid = FetionSipEvent::nextCallid();
+    FetionSipEvent sendEvent( FetionSipEvent::SipInfo );
+    sendEvent.addHeader( "F", m_from );
+    sendEvent.addHeader( "I", QString::number( callid ) );
+    sendEvent.addHeader( "Q", "2 IN" );
+
+    QString nudgeBody = "<is-composing><state>nudge</state></is-composing>";
+    sendEvent.addHeader( "L", QString::number( nudgeBody.toUtf8().size() ) );
+
+    sendEvent.setContent( nudgeBody );
+
+//     FetionSipEventCallbackData cbData = { &FetionSession::sendClientMessageCB, id };
+//     m_callidCallback[ callid ] = cbData;
+    chatChannel->sendSipEvent( sendEvent );
 }
 
 void FetionSession::sendMobilePhoneMessage( const QString& id, const QString& message )
@@ -791,6 +827,26 @@ void FetionSession::sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& cal
     Q_UNUSED(callbackEvent)
     Q_UNUSED(data)
     qWarning() << "sendKeepAliveCB" << isSuccessed;
+}
+
+void FetionSession::requestChatChannelCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )
+{
+    qWarning() << "requestChatChannelCB" << isSuccessed << callbackEvent.toString();
+    QString callid = callbackEvent.getFirstValue( "I" );
+    QString sequence = callbackEvent.getFirstValue( "Q" );
+    QString auth = callbackEvent.getFirstValue( "A" );
+    QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
+    QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );
+    QString firstAddressPort = addressList.section( ';', 0, 0, QString::SectionSkipEmpty );
+    QString firstAddress = firstAddressPort.section( ':', 0, 0, QString::SectionSkipEmpty );
+    QString firstPort = firstAddressPort.section( ':', 1, 1, QString::SectionSkipEmpty );
+
+    qWarning() << "Establish a chat channel" << firstAddressPort;
+    FetionSipNotifier* chatNotifier = new FetionSipNotifier( this );
+    connect( chatNotifier, SIGNAL(sipEventReceived(const FetionSipEvent&)),
+                this, SLOT(handleSipEvent(const FetionSipEvent&)) );
+    chatNotifier->connectToHost( firstAddress, firstPort.toInt() );
+    emit chatChannelEstablished( chatNotifier );
 }
 
 void FetionSession::sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )

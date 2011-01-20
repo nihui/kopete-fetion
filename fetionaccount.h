@@ -10,6 +10,7 @@ class FetionProtocol;
 class FetionSession;
 class FetionBuddyInfo;
 class FetionContact;
+class FetionSipNotifier;
 
 class FetionAccount : public Kopete::PasswordedAccount
 {
@@ -33,6 +34,7 @@ class FetionAccount : public Kopete::PasswordedAccount
         void slotLogoutSuccessed();
         void slotGotBuddy( const QString& id, const QString& buddyListName );
         void slotGotBuddyList( const QString& buddyListName );
+        void slotChatChannelAccepted( const QString& id, FetionSipNotifier* chatChannel );
         void slotBuddyStatusUpdated( const QString& id, const QString& statusId );
         void slotBuddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void slotGotMessage( const QString& id, const QString& message );

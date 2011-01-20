@@ -39,7 +39,9 @@ class FetionSession : public QObject
         void setVisibility( bool isVisible );
         void setStatusId( const QString& statusId );
         void setStatusMessage( const QString& statusMessage );
-        void sendClientMessage( const QString& id, const QString& message );
+        void requestChatChannel();
+        void sendClientMessage( const QString& id, const QString& message, FetionSipNotifier* chatChannel = 0 );
+        void sendClientNudge( FetionSipNotifier* chatChannel );
         void sendMobilePhoneMessage( const QString& id, const QString& message );
         void sendMobilePhoneMessageToMyself( const QString& message );
         void requestBuddyDetail( const QString& id );
@@ -60,6 +62,8 @@ class FetionSession : public QObject
         void logoutSuccessed();
         void gotBuddyList( const QString& buddyListName );
         void gotBuddy( const QString& id, const QString& buddyListName );
+        void chatChannelEstablished( FetionSipNotifier* chatChannel );
+        void chatChannelAccepted( const QString& id, FetionSipNotifier* chatChannel );
         void buddyStatusUpdated( const QString& id, const QString& statusId );
         void buddyInfoUpdated( const QString& id, const FetionBuddyInfo& buddyInfo );
         void gotMessage( const QString& id, const QString& message );
@@ -70,6 +74,7 @@ class FetionSession : public QObject
 
     private:
         void sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
+        void requestChatChannelCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
         void sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
         void requestBuddyDetailCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
 

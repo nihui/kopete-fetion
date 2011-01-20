@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Service
 X-Kopete-Version=1000900
-Icon=fetion
+Icon=fetion_protocol
 X-KDE-ServiceTypes=Kopete/Protocol
 X-KDE-Library=kopete_fetion
 X-Kopete-Messaging-Protocol=messaging/fetion
@@ -9,10 +9,10 @@ X-KDE-PluginInfo-Author=Ni Hui
 X-KDE-PluginInfo-Email=shuizhuyuanluo@126.com
 X-KDE-PluginInfo-Name=kopete_fetion
 X-KDE-PluginInfo-Version=0.0.1
-X-KDE-PluginInfo-Website=http://kopete.kde.org
+X-KDE-PluginInfo-Website=http://shuizhuyuanluo.blog.163.com
 X-KDE-PluginInfo-Category=Protocols
 X-KDE-PluginInfo-Depends=
 X-KDE-PluginInfo-License=GPL
 X-KDE-PluginInfo-EnabledByDefault=true
 Name=Fetion
-Comment=Fetion protocol
+Comment=CMCC Fetion protocol
