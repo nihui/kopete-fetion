@@ -333,6 +333,33 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
 
                 m_notifier->sendSipEvent( sipcAuthActionEvent );
             }
+            else if ( sipEvent.typeAddition() == "421 Extension Required"
+                || sipEvent.typeAddition() == "420 Bad Extension" ) {
+                QString wStr = sipEvent.getFirstValue( "W" );
+                int algorithmBegin = wStr.indexOf( "algorithm=\"", 0 );
+                int algorithmEnd = wStr.indexOf( "\"", algorithmBegin );
+                algorithm = wStr.mid( algorithmBegin, algorithmEnd - algorithmBegin );
+                int typeBegin = wStr.indexOf( "type=\"", 0 );
+                int typeEnd = wStr.indexOf( "\"", typeBegin );
+                type = wStr.mid( typeBegin, typeEnd - typeBegin );
+
+                /// generate pic code
+                QNetworkRequest request;
+
+                QUrl url;
+                url.setUrl( m_getPicCodeUri );
+                url.setPort( 80 );
+                url.addEncodedQueryItem( "algorithm", algorithm.toAscii() );
+                request.setUrl( url );
+
+                request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
+                request.setRawHeader( "Host", "nav.fetion.com.cn" );
+                request.setRawHeader( "Connection", "Close" );
+
+                QNetworkReply* r = manager->get( request );
+                connect( r, SIGNAL(finished()), this, SLOT(getCodePicFinished()) );
+                return;
+            }
             else if ( sipEvent.typeAddition() == "200 OK" ) {
                 /// sipc register success
                 /// login success
