@@ -37,8 +37,8 @@ endif(CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 include_directories(${KOPETE_INCLUDE_DIR} ${KOPETE_INCLUDE_DIR}/ui ${OPENSSL_INCLUDE_DIR})
 
 kde4_add_ui_files(kopete_fetion_PART_UIS
-    fetioncontactinfo.ui
-    fetioneditaccount.ui
+    ui/fetioncontactinfo.ui
+    ui/fetioneditaccount.ui
 )
 
 set(kopete_fetion_PART_SRCS
@@ -61,9 +61,10 @@ kde4_add_plugin(kopete_fetion ${kopete_fetion_PART_SRCS})
 target_link_libraries(kopete_fetion ${KDE4_KIO_LIBS} kopete ${QT_QTNETWORK_LIBRARY} crypto)
 
 install(TARGETS kopete_fetion DESTINATION ${PLUGIN_INSTALL_DIR})
-kde4_install_icons(${DATA_INSTALL_DIR}/kopete/icons)
 
 ########### install files ###############
 
 install(FILES kopete_fetion.desktop DESTINATION ${SERVICES_INSTALL_DIR})
-install(FILES fetionchatui.rc DESTINATION ${DATA_INSTALL_DIR}/kopete_fetion)
+install(FILES ui/fetionchatui.rc DESTINATION ${DATA_INSTALL_DIR}/kopete_fetion)
+
+add_subdirectory(icons)

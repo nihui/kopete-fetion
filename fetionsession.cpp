@@ -624,10 +624,6 @@ bool FetionSession::isConnected() const
     return m_isConnected;
 }
 
-void FetionSession::setVisibility( bool isVisible )
-{
-}
-
 void FetionSession::setStatusId( const QString& statusId )
 {
     FetionSipEvent sendEvent( FetionSipEvent::SipService );
@@ -833,7 +829,6 @@ void FetionSession::requestChatChannelCB( bool isSuccessed, const FetionSipEvent
 {
     qWarning() << "requestChatChannelCB" << isSuccessed << callbackEvent.toString();
     QString callid = callbackEvent.getFirstValue( "I" );
-    QString sequence = callbackEvent.getFirstValue( "Q" );
     QString auth = callbackEvent.getFirstValue( "A" );
     QString addressList = auth.section( '\"', 1, 1, QString::SectionSkipEmpty );
     QString credential = auth.section( '\"', 3, 3, QString::SectionSkipEmpty );

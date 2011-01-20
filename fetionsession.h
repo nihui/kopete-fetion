@@ -36,7 +36,6 @@ class FetionSession : public QObject
         QString accountId() const;
         bool isConnecting() const;
         bool isConnected() const;
-        void setVisibility( bool isVisible );
         void setStatusId( const QString& statusId );
         void setStatusMessage( const QString& statusMessage );
         void requestChatChannel();
