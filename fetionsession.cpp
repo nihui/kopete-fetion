@@ -253,7 +253,21 @@ void FetionSession::getCodePicFinished()
 
     vcode = codetext;
 
-    login();
+    if ( m_ssicCookie.isEmpty() ) {
+        /// ssic auth again
+        login();
+    }
+    else {
+        /// sipc register again
+        m_nouce = generateNouce();
+        FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
+        registerEvent.addHeader( "F", m_from );
+        registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+        registerEvent.addHeader( "Q", "2 R" );
+        registerEvent.addHeader( "CN", m_nouce );
+        registerEvent.addHeader( "CL", "type=\"pc\" ,version=\""PROTO_VERSION"\"" );
+        m_notifier->sendSipEvent( registerEvent );
+    }
 }
 
 void FetionSession::requestBuddyPortraitFinished()
@@ -313,7 +327,7 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 Astr = Astr.arg( QLatin1String( response ) );
                 sipcAuthActionEvent.addHeader( "A", Astr );
                 sipcAuthActionEvent.addHeader( "AK", "ak-value" );
-                if ( !vcode.isEmpty() ) {
+                if ( !picid.isEmpty() && !vcode.isEmpty() && !algorithm.isEmpty() ) {
                     QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
                     ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
                     sipcAuthActionEvent.addHeader( "A", ackaStr );
@@ -353,12 +367,12 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 request.setUrl( url );
 
                 request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
+                request.setRawHeader( "Cookie", "ssic=" + m_ssicCookie.toAscii() );
                 request.setRawHeader( "Host", "nav.fetion.com.cn" );
                 request.setRawHeader( "Connection", "Close" );
 
                 QNetworkReply* r = manager->get( request );
                 connect( r, SIGNAL(finished()), this, SLOT(getCodePicFinished()) );
-                return;
             }
             else if ( sipEvent.typeAddition() == "200 OK" ) {
                 /// sipc register success
@@ -634,6 +648,16 @@ void FetionSession::logout()
 
     m_hearter->stop();
     m_notifier->close();
+
+    m_ssicCookie.clear();
+    picid.clear();
+    vcode.clear();
+    algorithm.clear();
+    type.clear();
+    m_nouce.clear();
+    m_sipUri.clear();
+    m_userId.clear();
+    m_from.clear();
 
     m_isConnected = false;
     emit logoutSuccessed();
