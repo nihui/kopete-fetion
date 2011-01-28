@@ -297,8 +297,8 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 QByteArray hidden = nonce.toAscii() + passwordhash + aeskey;
                 const char* publickey = key.toAscii().constData();
                 const unsigned char* fromdata = reinterpret_cast<const unsigned char*>(hidden.constData());
-                char modulus[256];
-                char exponent[6];
+                char modulus[257] = {'\0'};
+                char exponent[7] = {'\0'};
                 memcpy( modulus, publickey, 256 );
                 memcpy( exponent, publickey + 256, 6 );
                 BIGNUM* bnn = BN_new();
