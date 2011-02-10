@@ -258,15 +258,8 @@ void FetionSession::getCodePicFinished()
         login();
     }
     else {
-        /// sipc register again
-        m_nouce = generateNouce();
-        FetionSipEvent registerEvent( FetionSipEvent::SipRegister );
-        registerEvent.addHeader( "F", m_from );
-        registerEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
-        registerEvent.addHeader( "Q", "2 R" );
-        registerEvent.addHeader( "CN", m_nouce );
-        registerEvent.addHeader( "CL", "type=\"pc\" ,version=\""PROTO_VERSION"\"" );
-        m_notifier->sendSipEvent( registerEvent );
+        /// sipc auth again
+        sendSipcAuthEvent();
     }
 }
 
@@ -314,46 +307,20 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 int ret = RSA_public_encrypt( hidden.size(), fromdata, outdata, r, RSA_PKCS1_PADDING );
                 RSA_free( r );
 
-                QByteArray response = QByteArray::fromRawData( (char*)outdata, flen );
+                response = QByteArray::fromRawData( (char*)outdata, flen );
                 response = response.toHex();
                 free( outdata );
                 qWarning() << "rsa public encrypt" << ret << response;
 
-                FetionSipEvent sipcAuthActionEvent( FetionSipEvent::SipRegister );
-                sipcAuthActionEvent.addHeader( "F", m_from );
-                sipcAuthActionEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
-                sipcAuthActionEvent.addHeader( "Q", "2 R" );
-                QString Astr( "Digest response=\"%1\",algorithm=\"SHA1-sess-v4\"" );
-                Astr = Astr.arg( QLatin1String( response ) );
-                sipcAuthActionEvent.addHeader( "A", Astr );
-                sipcAuthActionEvent.addHeader( "AK", "ak-value" );
-                if ( !picid.isEmpty() && !vcode.isEmpty() && !algorithm.isEmpty() ) {
-                    QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
-                    ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
-                    sipcAuthActionEvent.addHeader( "A", ackaStr );
-                }
-
-                QString authContent = "<args><device machine-code=\"001676C0E351\"/>"
-                                      "<caps value=\"1ff\"/><events value=\"7f\"/>"
-                                      "<user-info mobile-no=\"%1\" user-id=\"%2\">"
-                                      "<personal version=\"\" attributes=\"v4default\"/>"
-                                      "<custom-config version=\"\"/>"
-                                      "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>"
-                                      "<credentials domains=\"fetion.com.cn\"/>"
-                                      "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
-                authContent = authContent.arg( m_accountId ).arg( m_userId );
-                sipcAuthActionEvent.addHeader( "L", QString::number( authContent.toUtf8().size() ) );
-                sipcAuthActionEvent.setContent( authContent );
-
-                m_notifier->sendSipEvent( sipcAuthActionEvent );
+                sendSipcAuthEvent();
             }
             else if ( sipEvent.typeAddition() == "421 Extension Required"
                 || sipEvent.typeAddition() == "420 Bad Extension" ) {
                 QString wStr = sipEvent.getFirstValue( "W" );
-                int algorithmBegin = wStr.indexOf( "algorithm=\"", 0 );
+                int algorithmBegin = wStr.indexOf( "algorithm=\"", 0 ) + 11;
                 int algorithmEnd = wStr.indexOf( "\"", algorithmBegin );
                 algorithm = wStr.mid( algorithmBegin, algorithmEnd - algorithmBegin );
-                int typeBegin = wStr.indexOf( "type=\"", 0 );
+                int typeBegin = wStr.indexOf( "type=\"", 0 ) + 6;
                 int typeEnd = wStr.indexOf( "\"", typeBegin );
                 type = wStr.mid( typeBegin, typeEnd - typeBegin );
 
@@ -366,9 +333,9 @@ void FetionSession::handleSipcRegisterReplyEvent( const FetionSipEvent& sipEvent
                 url.addEncodedQueryItem( "algorithm", algorithm.toAscii() );
                 request.setUrl( url );
 
-                request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
                 request.setRawHeader( "Cookie", "ssic=" + m_ssicCookie.toAscii() );
                 request.setRawHeader( "Host", "nav.fetion.com.cn" );
+                request.setRawHeader( "User-Agent", "IIC2.0/PC "PROTO_VERSION );
                 request.setRawHeader( "Connection", "Close" );
 
                 QNetworkReply* r = manager->get( request );
@@ -654,6 +621,7 @@ void FetionSession::logout()
     vcode.clear();
     algorithm.clear();
     type.clear();
+    response.clear();
     m_nouce.clear();
     m_sipUri.clear();
     m_userId.clear();
@@ -870,6 +838,37 @@ void FetionSession::requestBuddyPortrait( const QString& id )
     QNetworkReply* r = manager->get( request );
     m_portraitReplyId[ r ] = id;
     connect( r, SIGNAL(finished()), this, SLOT(requestBuddyPortraitFinished()) );
+}
+
+void FetionSession::sendSipcAuthEvent()
+{
+    FetionSipEvent sipcAuthActionEvent( FetionSipEvent::SipRegister );
+    sipcAuthActionEvent.addHeader( "F", m_from );
+    sipcAuthActionEvent.addHeader( "I", QString::number( FetionSipEvent::nextCallid() ) );
+    sipcAuthActionEvent.addHeader( "Q", "2 R" );
+    QString Astr( "Digest response=\"%1\",algorithm=\"SHA1-sess-v4\"" );
+    Astr = Astr.arg( QLatin1String( response ) );
+    sipcAuthActionEvent.addHeader( "A", Astr );
+    sipcAuthActionEvent.addHeader( "AK", "ak-value" );
+    if ( !picid.isEmpty() && !vcode.isEmpty() && !algorithm.isEmpty() ) {
+        QString ackaStr( "Verify response=\"%1\",algorithm=\"%2\",type=\"%3\",chid=\"%4\"" );
+        ackaStr = ackaStr.arg( vcode ).arg( algorithm ).arg( type ).arg( picid );
+        sipcAuthActionEvent.addHeader( "A", ackaStr );
+    }
+
+    QString authContent = "<args><device machine-code=\"001676C0E351\"/>"
+                            "<caps value=\"1ff\"/><events value=\"7f\"/>"
+                            "<user-info mobile-no=\"%1\" user-id=\"%2\">"
+                            "<personal version=\"\" attributes=\"v4default\"/>"
+                            "<custom-config version=\"\"/>"
+                            "<contact-list version=\"\" buddy-attributes=\"v4default\"/></user-info>"
+                            "<credentials domains=\"fetion.com.cn\"/>"
+                            "<presence><basic value=\"0\" desc=\"\"/></presence></args>";
+    authContent = authContent.arg( m_accountId ).arg( m_userId );
+    sipcAuthActionEvent.addHeader( "L", QString::number( authContent.toUtf8().size() ) );
+    sipcAuthActionEvent.setContent( authContent );
+
+    m_notifier->sendSipEvent( sipcAuthActionEvent );
 }
 
 void FetionSession::sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data )

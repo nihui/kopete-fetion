@@ -72,6 +72,9 @@ class FetionSession : public QObject
         void gotNudge( const QString& id );
 
     private:
+        void sendSipcAuthEvent();
+
+    private:
         void sendKeepAliveCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
         void requestChatChannelCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
         void sendClientMessageCB( bool isSuccessed, const FetionSipEvent& callbackEvent, const QVariant& data );
@@ -92,6 +95,7 @@ class FetionSession : public QObject
         QString vcode;
         QString algorithm;
         QString type;
+        QByteArray response;
         FetionSipNotifier* m_notifier;
 
         QString m_ssiAppSignInV2Uri;
